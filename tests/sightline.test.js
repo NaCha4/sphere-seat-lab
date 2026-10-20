@@ -25,6 +25,22 @@ test('baseline balcony blocks the upper screen from rear 100 seats but not front
     return ray.intersectObjects(obstacles, false)[0]?.object === model.screen;
   };
   try {
+    const selected = resolveSeat(layout, { section: 206, row: 10 });
+    const pointed = resolveSeat(layout, { section: 210, row: 10 });
+    const color = new THREE.Color();
+    model.select(selected);
+    model.setHoverSeats([pointed, pointed, selected]);
+    assert.equal(model.selected, selected, 'hover must not teleport the viewer');
+    assert.equal(model.hovered.length, 2, 'two hands may point at different seats; duplicates collapse');
+    assert.ok(model.hoverSlots.every(slot => slot.visible));
+    model.chairMeshes[0].getColorAt(pointed.index, color);
+    assert.equal(color.getHexString(), '77ffe0');
+    model.setHoverSeats([]);
+    assert.ok(model.hoverSlots.every(slot => !slot.visible));
+    model.chairMeshes[0].getColorAt(pointed.index, color);
+    assert.equal(color.getHexString(), model.baseColors.get(pointed.tier).getHexString());
+    model.chairMeshes[0].getColorAt(selected.index, color);
+    assert.equal(color.getHexString(), 'edd096', 'clearing hover restores the selected-seat color');
     assert.equal(seesUpperScreen(106, 14), true);
     assert.equal(seesUpperScreen(106, 35), false);
     assert.equal(seesUpperScreen(206, 10), true);

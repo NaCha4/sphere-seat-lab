@@ -66,6 +66,11 @@ function fbm(x, y) {
 }
 
 export function screenTexture(mode = 'earth') {
+  if (mode === 'chiikawa') {
+    const texture = new THREE.TextureLoader().load(new URL('./assets/chiikawa-screen.webp', import.meta.url).href);
+    texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
+    return texture;
+  }
   const canvas = document.createElement('canvas'); canvas.width = 2048; canvas.height = 1024;
   const ctx = canvas.getContext('2d');
   if (mode === 'earth') {
@@ -122,13 +127,24 @@ export function screenTexture(mode = 'earth') {
 }
 
 export class Auditorium {
-  constructor(scene, layout) {
+  constructor(scene, layout, { screenMode = 'earth' } = {}) {
     this.scene = scene; this.layout = layout; this.group = new THREE.Group();
     this.group.name = 'Original Sphere reconstruction'; scene.add(this.group);
     this.pickables = []; this.chairMeshes = []; this.labels = new THREE.Group(); this.group.add(this.labels);
-    this.createArchitecture(); this.createSeats(); this.createScreen(); this.createExterior();
+    this.createArchitecture(); this.createSeats(); this.createScreen(screenMode); this.createExterior();
     const ring = new THREE.Mesh(new THREE.RingGeometry(.42, .49, 32), new THREE.MeshBasicMaterial({ color: '#eac78d', side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; this.marker = ring; this.group.add(ring);
+    this.hovered = [];
+    const hoverMaterial = new THREE.MeshBasicMaterial({ color: '#77ffe0', transparent: true, opacity: .92, depthWrite: false, toneMapped: false });
+    this.hoverSlots = Array.from({ length: 2 }, () => {
+      const group = new THREE.Group(); group.visible = false;
+      for (const source of this.chairMeshes) {
+        const glow = new THREE.Mesh(source.geometry, hoverMaterial);
+        glow.matrixAutoUpdate = false; glow.renderOrder = 2;
+        group.add(glow);
+      }
+      this.group.add(group); return group;
+    });
   }
 
   createArchitecture() {
@@ -239,8 +255,8 @@ export class Auditorium {
     this.baseColors = baseColors;
   }
 
-  createScreen() {
-    this.texture = screenTexture('earth');
+  createScreen(mode) {
+    this.texture = screenTexture(mode);
     this.screenMaterial = new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide, transparent: true, toneMapped: false });
     this.screen = new THREE.Mesh(screenGeometry(), this.screenMaterial); this.screen.name = 'interior-LED';
     this.group.add(this.screen);
@@ -260,6 +276,30 @@ export class Auditorium {
       mesh.setColorAt(seat.index, new THREE.Color('#edd096')); mesh.instanceColor.needsUpdate = true;
     }
     this.selected = seat; this.marker.position.set(seat.x, seat.y + .015, seat.z);
+    this.setHoverSeats(this.hovered, true);
+  }
+  setHoverSeats(seats, force = false) {
+    const next = [...new Map(seats.filter(Boolean).map(s => [s.id, s])).values()].slice(0, 2);
+    if (!force && next.length === this.hovered.length && next.every((s, i) => s.id === this.hovered[i].id)) return;
+    const affected = new Map([...this.hovered, ...next].map(s => [s.id, s]));
+    const ids = new Set(next.map(s => s.id));
+    for (const mesh of this.chairMeshes) {
+      for (const seat of affected.values()) {
+        const color = ids.has(seat.id) ? new THREE.Color('#77ffe0') : this.selected?.id === seat.id ? new THREE.Color('#edd096') : this.baseColors.get(seat.tier);
+        mesh.setColorAt(seat.index, color);
+      }
+      if (affected.size) mesh.instanceColor.needsUpdate = true;
+    }
+    const grow = new THREE.Matrix4().makeScale(1.045, 1.045, 1.045);
+    this.hoverSlots.forEach((slot, i) => {
+      slot.visible = Boolean(next[i]);
+      if (!next[i]) return;
+      slot.children.forEach((glow, part) => {
+        this.chairMeshes[part].getMatrixAt(next[i].index, glow.matrix);
+        glow.matrix.multiply(grow); glow.matrixWorldNeedsUpdate = true;
+      });
+    });
+    this.hovered = next;
   }
   setScreen(mode) {
     this.texture?.dispose(); this.texture = screenTexture(mode); this.screenMaterial.map = this.texture; this.screenMaterial.needsUpdate = true;

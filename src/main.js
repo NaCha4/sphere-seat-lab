@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Auditorium } from './auditorium.js';
 import { BUILDING, TIERS, PRESETS, makeLayout, resolveSeat, seatMetrics } from './layout.js';
 import { SOURCES, CONFIDENCE } from './evidence.js';
+import { XR_OVERLAY_ORDER, overlayMaterial, pickTarget, createAimPointer } from './interaction.js';
 
 const icon = (name, size = 18) => {
   const paths = {
@@ -43,9 +44,9 @@ app.innerHTML = `
     <div class="preset-heading"><h3>다른 시야 살펴보기</h3><span>QUICK VIEWS</span></div>
     <div class="presets">${PRESETS.map((p, i) => `<button data-preset="${i}"><span>${p.label}</span><small>${p.section} · ${p.row}행</small></button>`).join('')}</div>
     <div class="section-divider"></div>
-    <label class="field">스크린 콘텐츠<select id="content"><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 구조 보기</option></select></label>
+    <label class="field">스크린 콘텐츠<select id="content"><option value="chiikawa">치이카와 · 화면 전체 보기</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 구조 보기</option></select></label>
     <div class="display-options"><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="cinema">100층 앞쪽 가변 객석</label></div>
-    <p class="sidebar-note">콘텐츠는 관람 시야 확인용으로 제작했습니다.<br>실제 공연 영상은 포함하지 않습니다.</p>
+    <p class="sidebar-note">치이카와 화면은 AI로 생성한 팬 일러스트입니다.<br>실제 공연 영상은 포함하지 않습니다.</p>
   </aside>
   <main class="scene-ui">
     <div class="scene-caption"><span class="tag">BASELINE 01</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
@@ -62,7 +63,7 @@ const $ = id => document.getElementById(id);
 let layout = makeLayout();
 const query = new URLSearchParams(location.search);
 let currentSeat = resolveSeat(layout, { section: query.get('section') || 206, row: query.get('row') || 10, number: query.get('seat') });
-let view = 'seat', contentMode = 'earth', labelsVisible = false;
+let view = 'seat', contentMode = 'chiikawa', labelsVisible = false;
 let renderer, model, orbit;
 const scene = new THREE.Scene(); scene.background = new THREE.Color('#081019');
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, .05, 550);
@@ -72,7 +73,7 @@ const keyLight = new THREE.DirectionalLight('#afcde3', 1.25); keyLight.position.
 const fillLight = new THREE.DirectionalLight('#798aa5', .55); fillLight.position.set(-30, 25, 30); scene.add(fillLight);
 const raycaster = new THREE.Raycaster();
 let drag = null, yaw = currentSeat.yaw, pitch = .06, framePose = null, pendingVrAlign = false, vrSupported = false;
-const controllers = [], xrButtons = []; let xrPanel = null, lastStick = 0;
+const controllers = [], xrButtons = []; let xrPanel = null, lastStick = 0, lastAimUpdate = -Infinity, hoverCaption = null;
 
 function toast(message) {
   $('toast').textContent = message; $('toast').classList.add('visible');
@@ -137,6 +138,7 @@ function alignVr() {
 }
 
 function setSeat(seat, changeView = true) {
+  clearAimPreview();
   currentSeat = seat; model?.select(seat); updateInfo();
   if (renderer?.xr.isPresenting) { alignVr(); return; }
   if (changeView) setView('seat');
@@ -163,6 +165,7 @@ function setView(next) {
   hemisphere.intensity = next === 'overview' ? 4 : 2.2;
   keyLight.intensity = next === 'overview' ? 1.8 : 1.25;
   fillLight.intensity = next === 'overview' ? 1.1 : .55;
+  clearAimPreview();
   $('view-description').textContent = next === 'seat' ? '1인칭 · 드래그해서 둘러보기' : '전체 구조 · 드래그 회전 / 휠 확대';
   $('hint').innerHTML = next === 'seat' ? '마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화' : '좌석을 클릭하면 그 위치로 이동합니다 <span>·</span> 반투명 면: 내부 LED';
   orbit.enabled = next === 'overview'; model?.setOverview(next === 'overview', labelsVisible); resetView();
@@ -176,6 +179,7 @@ function moveRelative({ section = 0, row = 0, number = 0 } = {}) {
 
 function createXrPanel() {
   xrPanel = new THREE.Group(); xrPanel.visible = false; scene.add(xrPanel);
+  xrPanel.renderOrder = XR_OVERLAY_ORDER;
   const actions = [
     ['이전 구역', () => moveRelative({ section: -1 })], ['다음 구역', () => moveRelative({ section: 1 })],
     ['앞 행', () => moveRelative({ row: -1 })], ['뒤 행', () => moveRelative({ row: 1 })],
@@ -187,16 +191,58 @@ function createXrPanel() {
     const ctx = canvas.getContext('2d'); ctx.fillStyle = '#15292f'; ctx.fillRect(0, 0, 384, 144); ctx.strokeStyle = '#698d86'; ctx.lineWidth = 3; ctx.strokeRect(3, 3, 378, 138);
     ctx.fillStyle = '#e3f0e9'; ctx.font = '500 47px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 192, 72);
     const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(.43, .16), new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide, depthTest: false }));
-    mesh.position.set((i % 3 - 1) * .46, Math.floor(i / 3) * -.19, 0); mesh.userData.action = action; mesh.renderOrder = 10;
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(.43, .16), overlayMaterial({ map }));
+    mesh.position.set((i % 3 - 1) * .46, Math.floor(i / 3) * -.19, 0); mesh.userData.action = action; mesh.renderOrder = XR_OVERLAY_ORDER;
     xrPanel.add(mesh); xrButtons.push(mesh);
   });
+  const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 100;
+  const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
+  const caption = new THREE.Mesh(new THREE.PlaneGeometry(1.36, .136), overlayMaterial({ map }));
+  caption.position.set(0, .17, 0); caption.renderOrder = XR_OVERLAY_ORDER;
+  xrPanel.add(caption);
+  hoverCaption = { canvas, map, text: null };
+  updateHoverCaption(null);
+}
+
+function updateHoverCaption(seat) {
+  if (!hoverCaption) return;
+  const text = seat ? `${seat.section} 구역 · ${seat.row}행 · ${seat.number}번  /  핀치·트리거로 이동` : '좌석을 가리키면 민트색으로 빛납니다 · 핀치·트리거로 이동';
+  if (hoverCaption.text === text) return;
+  hoverCaption.text = text;
+  const ctx = hoverCaption.canvas.getContext('2d');
+  ctx.fillStyle = '#122b2d'; ctx.fillRect(0, 0, 1000, 100);
+  ctx.font = '500 33px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#baffdf';
+  ctx.fillText(text, 500, 50); hoverCaption.map.needsUpdate = true;
+}
+
+function clearAimPreview() {
+  for (const state of controllers) { state.target = null; state.dot.visible = false; state.ray.scale.z = 6; }
+  for (const button of xrButtons) button.material.color.set('#ffffff');
+  model?.setHoverSeats([]); updateHoverCaption(null); lastAimUpdate = -Infinity;
+}
+
+function updateAimTarget(state) {
+  state.controller.updateWorldMatrix(true, false);
+  controllerRay(state.controller);
+  state.target = pickTarget(raycaster, xrButtons, model.pickables, layout.seats);
+  const distance = state.target?.distance ?? 6;
+  state.ray.scale.z = distance;
+  state.dot.visible = Boolean(state.target);
+  state.dot.position.z = -distance;
+  state.dot.scale.setScalar(Math.max(1, distance * .1));
+  state.ray.material.color.set(state.target ? '#77ffe0' : '#badfcf');
+}
+
+function showAimPreview() {
+  model.setHoverSeats(controllers.map(s => s.target?.seat).filter(Boolean));
+  updateHoverCaption(controllers.find(s => s.target?.seat)?.target.seat);
+  for (const button of xrButtons) button.material.color.set(controllers.some(s => s.target?.object === button) ? '#baffdf' : '#ffffff');
 }
 
 function placeXrPanel() {
   if (!xrPanel) return;
   const direction = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), currentSeat.yaw);
-  xrPanel.position.set(currentSeat.x, currentSeat.y + BUILDING.eyeHeight - .5, currentSeat.z).addScaledVector(direction, 1.9);
+  xrPanel.position.set(currentSeat.x, currentSeat.y + BUILDING.eyeHeight - .38, currentSeat.z).addScaledVector(direction, 1.9);
   xrPanel.rotation.set(0, currentSeat.yaw, 0);
 }
 
@@ -209,16 +255,15 @@ function controllerRay(controller) {
 function setupXr() {
   for (let i = 0; i < 2; i++) {
     const controller = renderer.xr.getController(i); rig.add(controller);
-    const ray = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]), new THREE.LineBasicMaterial({ color: '#badfcf' }));
-    ray.scale.z = 6; controller.add(ray); controllers.push({ controller, ray, gamepad: null });
+    const { group, ray, dot } = createAimPointer(); controller.add(group);
+    const state = { controller, ray, dot, gamepad: null, target: null };
+    controllers.push(state);
     controller.addEventListener('connected', e => { controllers[i].gamepad = e.data.gamepad; });
-    controller.addEventListener('disconnected', () => { controllers[i].gamepad = null; });
+    controller.addEventListener('disconnected', () => { state.gamepad = null; clearAimPreview(); });
     controller.addEventListener('selectstart', () => {
-      controllerRay(controller);
-      const buttons = raycaster.intersectObjects(xrButtons, false);
-      if (buttons[0]) { buttons[0].object.userData.action(); return; }
-      const hit = raycaster.intersectObjects(model.pickables, false)[0];
-      if (hit && hit.instanceId != null) setSeat(layout.seats[hit.instanceId]);
+      updateAimTarget(state);
+      if (state.target?.type === 'button') state.target.object.userData.action();
+      else if (state.target?.seat) setSeat(state.target.seat);
     });
     const grip = renderer.xr.getControllerGrip(i);
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(.018, .024, .12, 8), new THREE.MeshStandardMaterial({ color: '#c3d5d1', roughness: .6 }));
@@ -226,11 +271,13 @@ function setupXr() {
   }
   createXrPanel();
   renderer.xr.addEventListener('sessionstart', () => {
+    clearAimPreview();
     orbit.enabled = false; camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0);
     model.setOverview(false, labelsVisible); pendingVrAlign = true; xrPanel.visible = true;
     document.body.classList.add('in-vr');
   });
   renderer.xr.addEventListener('sessionend', () => {
+    clearAimPreview();
     framePose = null; pendingVrAlign = false; xrPanel.visible = false; document.body.classList.remove('in-vr'); setView('seat');
   });
   if (navigator.xr && isSecureContext) navigator.xr.isSessionSupported('immersive-vr').then(supported => {
@@ -242,7 +289,7 @@ function setupXr() {
 async function startVr() {
   if (!vrSupported) { toast('Meta Quest 3의 브라우저에서 이 사이트를 열면 VR로 입장할 수 있습니다.'); return; }
   try {
-    const session = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'], optionalFeatures: ['bounded-floor'] });
+    const session = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'], optionalFeatures: ['bounded-floor', 'hand-tracking'] });
     await renderer.xr.setSession(session);
   } catch (e) { toast(`VR을 시작하지 못했습니다. ${e.name === 'NotAllowedError' ? '브라우저 권한을 확인해 주세요.' : '다시 VR 시작을 눌러 주세요.'}`); }
 }
@@ -259,10 +306,20 @@ function initRenderer() {
   renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFramebufferScaleFactor(.9);
   $('viewport').append(renderer.domElement);
   orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping = true; orbit.minDistance = 12; orbit.maxDistance = 290; orbit.maxPolarAngle = Math.PI * .85; orbit.enabled = false;
-  model = new Auditorium(scene, layout); model.select(currentSeat); setupXr(); setView('seat'); updateInfo();
+  model = new Auditorium(scene, layout, { screenMode: contentMode }); model.select(currentSeat); setupXr(); setView('seat'); updateInfo();
   renderer.domElement.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, moved: false }; renderer.domElement.setPointerCapture(e.pointerId); });
   renderer.domElement.addEventListener('pointermove', e => {
-    if (!drag || renderer.xr.isPresenting) return;
+    if (renderer.xr.isPresenting) return;
+    if (!drag) {
+      if (view === 'overview') {
+        raycaster.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
+        const target = pickTarget(raycaster, [], model.pickables, layout.seats);
+        model.setHoverSeats(target ? [target.seat] : []);
+        renderer.domElement.style.cursor = target ? 'pointer' : '';
+      }
+      return;
+    }
+    model.setHoverSeats([]);
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
     if (view === 'seat') { yaw -= dx * .003; pitch = THREE.MathUtils.clamp(pitch - dy * .003, -1.48, 1.48); camera.rotation.set(pitch, yaw, 0, 'YXZ'); }
@@ -276,12 +333,19 @@ function initRenderer() {
     drag = null;
   });
   renderer.domElement.addEventListener('pointercancel', () => { drag = null; });
+  renderer.domElement.addEventListener('pointerleave', () => { if (!renderer.xr.isPresenting) model.setHoverSeats([]); });
   renderer.domElement.addEventListener('wheel', e => { if (view !== 'seat') return; e.preventDefault(); camera.fov = THREE.MathUtils.clamp(camera.fov + e.deltaY * .025, 35, 100); camera.updateProjectionMatrix(); }, { passive: false });
   renderer.setAnimationLoop((time, xrFrame) => {
     if (renderer.xr.isPresenting && xrFrame) {
       framePose = xrFrame.getViewerPose(renderer.xr.getReferenceSpace()); if (pendingVrAlign && framePose) alignVr();
-      for (const { controller, ray, gamepad } of controllers) {
-        controllerRay(controller); const hit = raycaster.intersectObjects(xrButtons, false)[0]; ray.scale.z = hit ? hit.distance : 6;
+      if (time - lastAimUpdate >= 50) {
+        for (const state of controllers) {
+          if (state.controller.visible) updateAimTarget(state);
+          else { state.target = null; state.dot.visible = false; }
+        }
+        showAimPreview(); lastAimUpdate = time;
+      }
+      for (const { gamepad } of controllers) {
         if (gamepad && time - lastStick > 450) {
           const axes = gamepad.axes, x = axes[axes.length - 2] || 0, y = axes[axes.length - 1] || 0;
           if (Math.abs(x) > .75) { moveRelative({ number: x > 0 ? 1 : -1 }); lastStick = time; }
@@ -292,7 +356,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
 }
 
 $('section').addEventListener('change', () => setSeat(resolveSeat(layout, { section: $('section').value, row: currentSeat.row })));
@@ -305,7 +369,7 @@ $('seat-view').addEventListener('click', () => setView('seat')); $('overview').a
 $('content').addEventListener('change', () => { contentMode = $('content').value; model?.setScreen(contentMode); });
 $('labels').addEventListener('change', () => { labelsVisible = $('labels').checked; model?.setOverview(view === 'overview', labelsVisible); });
 $('cinema').addEventListener('change', () => {
-  layout = makeLayout({ cinema: $('cinema').checked }); model?.dispose(); model = new Auditorium(scene, layout); model.setScreen(contentMode);
+  clearAimPreview(); layout = makeLayout({ cinema: $('cinema').checked }); model?.dispose(); model = new Auditorium(scene, layout, { screenMode: contentMode });
   setSeat(resolveSeat(layout, currentSeat), false); model.setOverview(view === 'overview', labelsVisible);
 });
 $('vr').addEventListener('click', startVr);
