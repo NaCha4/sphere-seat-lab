@@ -159,6 +159,10 @@ function resetView() {
 function setView(next) {
   if (renderer?.xr.isPresenting) return;
   view = next; $('seat-view').classList.toggle('active', next === 'seat'); $('overview').classList.toggle('active', next === 'overview');
+  document.body.classList.toggle('overview-mode', next === 'overview');
+  hemisphere.intensity = next === 'overview' ? 4 : 2.2;
+  keyLight.intensity = next === 'overview' ? 1.8 : 1.25;
+  fillLight.intensity = next === 'overview' ? 1.1 : .55;
   $('view-description').textContent = next === 'seat' ? '1인칭 · 드래그해서 둘러보기' : '전체 구조 · 드래그 회전 / 휠 확대';
   $('hint').innerHTML = next === 'seat' ? '마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화' : '좌석을 클릭하면 그 위치로 이동합니다 <span>·</span> 반투명 면: 내부 LED';
   orbit.enabled = next === 'overview'; model?.setOverview(next === 'overview', labelsVisible); resetView();
