@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING, TIERS, radians } from './layout.js';
 import { createAuroraMaterial } from './screen-content.js';
 import { Audience } from './audience.js';
+import { createScreenGeometry } from './screen-geometry.js';
 
 function roundedPanel(width, height, depth, radius) {
   const x = -width / 2, y = -height / 2, r = radius, shape = new THREE.Shape();
@@ -15,12 +16,12 @@ function roundedPanel(width, height, depth, radius) {
   geometry.translate(0, 0, -depth / 2); return geometry;
 }
 
-function sector(inner, outer, start, end, top, bottom = top - .2, segments = 10) {
+function sector(inner, outer, start, end, top, bottom = top - .2, segments = 10, centerZ = 0) {
   const p = [], indices = [];
   for (let i = 0; i <= segments; i++) {
     const a = start + (end - start) * i / segments;
-    for (const [r, y] of [[inner, top], [outer, top], [inner, bottom], [outer, bottom]])
-      p.push(Math.sin(a) * r, y, BUILDING.bowlCenterZ + Math.cos(a) * r);
+    for (const [r, y] of [[inner, Array.isArray(top) ? top[0] : top], [outer, Array.isArray(top) ? top[1] : top], [inner, Array.isArray(bottom) ? bottom[0] : bottom], [outer, Array.isArray(bottom) ? bottom[1] : bottom]])
+      p.push(Math.sin(a) * r, y, centerZ + Math.cos(a) * r);
   }
   for (let i = 0; i < segments; i++) {
     const k = i * 4;
@@ -34,35 +35,6 @@ function sector(inner, outer, start, end, top, bottom = top - .2, segments = 10)
   indices.push(k, k + 2, k + 1, k + 1, k + 2, k + 3);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
-  g.setIndex(indices); g.computeVertexNormals(); return g;
-}
-
-function screenGeometry() {
-  const c = BUILDING.screen, p = [], uv = [], indices = [];
-  const width = 180, height = 72;
-  const capHeight = BUILDING.publishedScreenArea / (2 * Math.PI * c.radius);
-  const polarMax = Math.acos(1 - capHeight / c.radius);
-  const point = new THREE.Vector3(), tiltAxis = new THREE.Vector3(1, 0, 0);
-  for (let x = 0; x <= width; x++) {
-    const az = -Math.PI + 2 * Math.PI * x / width;
-    // Weld the periodic seam exactly, including ray tests on the centre plane.
-    const sinAz = Math.abs(Math.sin(az)) < 1e-12 ? 0 : Math.sin(az);
-    const cosAz = Math.abs(Math.cos(az)) < 1e-12 ? 0 : Math.cos(az);
-    for (let y = 0; y <= height; y++) {
-      const polar = polarMax * y / height;
-      point.set(c.radius * Math.sin(polar) * sinAz, c.radius * Math.cos(polar), -c.radius * Math.sin(polar) * cosAz);
-      point.applyAxisAngle(tiltAxis, -radians(c.tiltDegrees));
-      p.push(point.x, point.y + c.centerY, point.z + c.centerZ);
-      uv.push(x / width, 1 - y / height);
-    }
-  }
-  for (let x = 0; x < width; x++) for (let y = 0; y < height; y++) {
-    const k = x * (height + 1) + y;
-    indices.push(k, k + 1, k + height + 1, k + 1, k + height + 2, k + height + 1);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(indices); g.computeVertexNormals(); return g;
 }
 
@@ -172,15 +144,15 @@ export class Auditorium {
     for (const s of this.layout.sections) {
       for (const [row, list] of s.rows) {
         const seat = list[0], t = s.tier;
-        tiers.get(t.id).push(sector(seat.radius - t.tread / 2, seat.radius + t.tread / 2, s.start - radians(.9), s.end + radians(.9), seat.floorY, seat.floorY - t.rise - .15));
+        tiers.get(t.id).push(sector(seat.radius - t.tread / 2, seat.radius + t.tread / 2, s.start - radians(.9), s.end + radians(.9), seat.floorY, seat.floorY - t.rise - .15, 10, t.centerZ));
       }
       const t = s.tier, first = s.rows.get(s.range.first)[0], last = s.rows.get(s.range.last)[0];
       const label = this.makeLabel(String(s.id), t.color);
-      label.position.set(Math.sin(s.center) * (first.radius + 1.5), first.floorY + 2, BUILDING.bowlCenterZ + Math.cos(s.center) * (first.radius + 1.5));
+      label.position.set(Math.sin(s.center) * (first.radius + 1.5), first.floorY + 2, t.centerZ + Math.cos(s.center) * (first.radius + 1.5));
       label.scale.set(2.4, 1.2, 1); this.labels.add(label);
       for (const angle of [s.start - radians(.7), s.end + radians(.7)]) {
-        const x0 = Math.sin(angle) * first.radius, z0 = BUILDING.bowlCenterZ + Math.cos(angle) * first.radius;
-        const x1 = Math.sin(angle) * last.radius, z1 = BUILDING.bowlCenterZ + Math.cos(angle) * last.radius;
+        const x0 = Math.sin(angle) * first.radius, z0 = t.centerZ + Math.cos(angle) * first.radius;
+        const x1 = Math.sin(angle) * last.radius, z1 = t.centerZ + Math.cos(angle) * last.radius;
         beam([x0, first.floorY + .95, z0], [x1, last.floorY + .95, z1], .035);
         for (let j = 0; j <= 5; j++) {
           const f = j / 5, x = THREE.MathUtils.lerp(x0, x1, f), z = THREE.MathUtils.lerp(z0, z1, f), y = THREE.MathUtils.lerp(first.floorY, last.floorY, f);
@@ -189,17 +161,16 @@ export class Auditorium {
         beam([x0, first.floorY + .035, z0], [x1, last.floorY + .035, z1], .026, lightMatrices);
       }
       // The pronounced first balcony overhang is part of the baseline, not an improvement.
-      if (t.id === 200 || t.id === 300) {
-        const bottom = t.id === 200 ? t.elevation - 1.8 : t.elevation - 1.6;
-        const under = new THREE.Mesh(sector(first.radius - 1.8, last.radius + 2.2, s.start - radians(.9), s.end + radians(.9), t.elevation - .18, bottom, 18), soffit);
+      if (t.id >= 200) {
+        const under = new THREE.Mesh(sector(first.radius - t.tread / 2, last.radius + t.tread / 2, s.start, s.end, [first.floorY - .18, last.floorY - .18], [first.floorY - 1.3, last.floorY - 1.3], 18, t.centerZ), soffit);
         under.name = 'warm-balcony-underside';
         this.group.add(under);
-        const railRadius = first.radius - 1.7;
+        const railRadius = first.radius - t.tread / 2;
         for (let j = 0; j < 18; j++) {
           const a0 = s.start + (s.end - s.start) * j / 18, a1 = s.start + (s.end - s.start) * (j + 1) / 18;
-          const p = a => [Math.sin(a) * railRadius, t.elevation + 1.02, BUILDING.bowlCenterZ + Math.cos(a) * railRadius];
+          const p = a => [Math.sin(a) * railRadius, first.floorY + 1.02, t.centerZ + Math.cos(a) * railRadius];
           beam(p(a0), p(a1), .045);
-          if (j % 3 === 0) beam([p(a0)[0], t.elevation, p(a0)[2]], p(a0), .035);
+          if (j % 3 === 0) beam([p(a0)[0], first.floorY, p(a0)[2]], p(a0), .035);
         }
       }
     }
@@ -213,22 +184,25 @@ export class Auditorium {
     };
     addInstances(beamMatrices, new THREE.MeshStandardMaterial({ color: '#89949a', roughness: .44, metalness: .7 }));
     addInstances(lightMatrices, new THREE.MeshBasicMaterial({ color: '#477da1' }));
-    const floor = new THREE.Mesh(new THREE.CylinderGeometry(73, 73, .4, 96), new THREE.MeshStandardMaterial({ color: '#0b141c', roughness: .97 }));
-    floor.position.set(0, -.27, -12); this.group.add(floor);
+    const floor = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, .4, 96), new THREE.MeshStandardMaterial({ color: '#0b141c', roughness: .97 }));
+    floor.position.set(0, -.27, 0); this.group.add(floor);
     const event = new THREE.Mesh(new THREE.CylinderGeometry(25, 25, .08, 64), new THREE.MeshStandardMaterial({ color: '#18232a', roughness: 1 }));
     event.position.set(0, -.02, -19); this.group.add(event);
+    this.stageGroup = new THREE.Group(); this.stageGroup.visible = false; this.group.add(this.stageGroup);
     const st = BUILDING.stage;
     const stage = new THREE.Mesh(new THREE.BoxGeometry(st.width, st.y, st.depth), new THREE.MeshStandardMaterial({ color: '#070d12', roughness: .77 }));
-    stage.position.set(st.x, st.y / 2, st.z); this.group.add(stage);
+    stage.position.set(st.x, st.y / 2, st.z); this.stageGroup.add(stage);
     const stageLine = new THREE.Mesh(new THREE.BoxGeometry(st.width, .022, .035), new THREE.MeshBasicMaterial({ color: '#7c8a8d' }));
-    stageLine.position.set(0, st.y + .012, st.z + st.depth / 2); this.group.add(stageLine);
-    const stageLabel = this.makeLabel('STAGE', '#9cb4ba'); stageLabel.position.set(0, 1.4, st.z); stageLabel.scale.set(4, 2, 1); this.labels.add(stageLabel);
-    // Side and rear walls, including two distinct hospitality bands.
-    const wall = new THREE.Mesh(sector(73, 74, -radians(115), radians(115), 56, 0, 100), new THREE.MeshStandardMaterial({ color: '#0a131b', roughness: 1, side: THREE.DoubleSide }));
-    this.group.add(wall);
-    for (const y of [12.3, 25.8]) {
-      const band = new THREE.Mesh(sector(y < 20 ? 48 : 55, 71, -radians(108), radians(108), y, y - 1.0, 90), fascia);
-      this.group.add(band);
+    stageLine.position.set(0, st.y + .012, st.z + st.depth / 2); this.stageGroup.add(stageLine);
+    const stageLabel = this.makeLabel('EVENT STAGE', '#9cb4ba'); stageLabel.position.set(0, 1.4, st.z); stageLabel.scale.set(4, 2, 1); this.stageGroup.add(stageLabel);
+    // Two hospitality bands behind the bowl, separate from the four public tiers.
+    for (const [tierId, height] of [[200, 10.2], [300, 23.0]]) {
+      const tier = TIERS.find(t => t.id === tierId);
+      for (const section of this.layout.sections.filter(s => s.tier.id === tierId)) {
+        const last = section.rows.get(section.range.last)[0];
+        const band = new THREE.Mesh(sector(last.radius + 1, last.radius + 3.5, section.start, section.end, height, height - 1, 12, tier.centerZ), fascia);
+        this.group.add(band);
+      }
     }
   }
 
@@ -242,23 +216,30 @@ export class Auditorium {
 
   createSeats() {
     const count = this.layout.seats.length;
-    const seatPad = roundedPanel(.49, .45, .14, .055); seatPad.rotateX(-Math.PI / 2);
+    // Luxx-family rail mount, drawn from the public manufacturer's profile.
+    // The 580 mm variant is a reconstruction choice, not a verified Sphere order.
+    const seatPad = roundedPanel(.46, .47, .10, .055); seatPad.rotateX(-Math.PI / 2);
     const parts = [
-      { geometry: seatPad, position: [0, .47, -.015], fabric: true },
-      { geometry: roundedPanel(.49, .62, .115, .085), position: [0, .80, .205], tilt: -.11, fabric: true },
-      { geometry: new THREE.PlaneGeometry(.39, .42).rotateY(Math.PI), position: [0, .83, .143], tilt: -.11, fabric: true },
-      { geometry: new THREE.BoxGeometry(.074, .075, .42), position: [-.281, .66, -.005] },
-      { geometry: new THREE.BoxGeometry(.074, .075, .42), position: [.281, .66, -.005] },
-      { geometry: new THREE.CylinderGeometry(.022, .022, .25, 4, 1, true), position: [-.281, .50, .09] },
-      { geometry: new THREE.CylinderGeometry(.022, .022, .25, 4, 1, true), position: [.281, .50, .09] },
-      { geometry: new THREE.CylinderGeometry(.036, .047, .40, 4, 1, true), position: [0, .22, .10] },
-      { geometry: new THREE.BoxGeometry(.36, .035, .22), position: [0, .037, .10] },
-      { geometry: new THREE.RingGeometry(.039, .051, 8), position: [.281, .706, -.16], tilt: -Math.PI / 2 },
+      { geometry: seatPad, position: [0, .40, -.095], fabric: true },
+      { geometry: roundedPanel(.46, .56, .09, .07), position: [0, .64, .185], tilt: radians(12), fabric: true },
+      { geometry: new THREE.PlaneGeometry(.39, .45).rotateY(Math.PI), position: [0, .64, .137], tilt: radians(12), fabric: true },
+      { geometry: new THREE.BoxGeometry(.048, .365, .35), position: [-.265, .455, .045] },
+      { geometry: new THREE.BoxGeometry(.048, .365, .35), position: [.265, .455, .045] },
+      { geometry: roundedPanel(.064, .34, .055, .025).rotateX(Math.PI / 2), position: [-.265, .651, -.025] },
+      { geometry: roundedPanel(.064, .34, .055, .025).rotateX(Math.PI / 2), position: [.265, .651, -.025] },
+      { geometry: new THREE.CylinderGeometry(.057, .057, .045, 10).rotateZ(Math.PI / 2), position: [-.267, .37, .12] },
+      { geometry: new THREE.CylinderGeometry(.057, .057, .045, 10).rotateZ(Math.PI / 2), position: [.267, .37, .12] },
+      { geometry: new THREE.BoxGeometry(.58, .10, .065), position: [0, .23, .10], rail: true },
+      { geometry: new THREE.BoxGeometry(.035, .23, .065), position: [0, .115, .10] },
+      { geometry: new THREE.BoxGeometry(.18, .025, .20), position: [0, .018, .10] },
+      { geometry: new THREE.CylinderGeometry(.046, .040, .08, 10, 1, true), position: [.265, .615, -.235] },
+      { geometry: new THREE.RingGeometry(.035, .046, 12), position: [.265, .656, -.235], tilt: -Math.PI / 2 },
+      { geometry: new THREE.BoxGeometry(.13, .012, .004), position: [0, .665, .137] },
     ];
     const fabric = new THREE.MeshStandardMaterial({ color: '#e0e8ee', roughness: .90, metalness: 0 });
-    const frame = new THREE.MeshStandardMaterial({ color: '#37434b', roughness: .48, metalness: .42 });
+    const frame = new THREE.MeshStandardMaterial({ color: '#30363b', roughness: .48, metalness: .42 });
     const o = new THREE.Object3D(), part = new THREE.Object3D();
-    const baseColors = new Map(TIERS.map(t => [t.id, new THREE.Color(t.id === 100 ? '#253747' : t.id === 200 ? '#263b4e' : t.id === 300 ? '#2d3d57' : '#35405a')]));
+    const baseColors = new Map(TIERS.map(t => [t.id, new THREE.Color(t.id === 100 ? '#252b30' : t.id === 200 ? '#293035' : t.id === 300 ? '#2b3339' : '#30383e')]));
     parts.forEach((def, partIndex) => {
       const mesh = new THREE.InstancedMesh(def.geometry, def.fabric ? fabric : frame, count);
       mesh.userData.baseColors = def.fabric ? baseColors : new Map(TIERS.map(t => [t.id, new THREE.Color('#9aa8b3')]));
@@ -278,27 +259,21 @@ export class Auditorium {
 
   createScreen(mode) {
     this.screenMaterial = this.makeScreenMaterial(mode);
-    this.screen = new THREE.Mesh(screenGeometry(), this.screenMaterial); this.screen.name = 'interior-LED';
+    const { geometry, boundary } = createScreenGeometry();
+    this.screen = new THREE.Mesh(geometry, this.screenMaterial); this.screen.name = 'interior-LED';
     this.group.add(this.screen);
-    const position = this.screen.geometry.attributes.position, edge = [];
-    const center = new THREE.Vector3(0, BUILDING.screen.centerY, BUILDING.screen.centerZ);
-    for (let x = 0; x < 180; x++) {
-      const point = new THREE.Vector3().fromBufferAttribute(position, x * 73 + 72);
-      edge.push(point.sub(center).multiplyScalar(.9995).add(center));
-    }
-    this.screenEdge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: '#a7b9ba', transparent: true, opacity: .48, depthWrite: false }));
-    this.screenEdge.name = 'LED-boundary'; this.screenEdge.renderOrder = 1;
-    this.group.add(this.screenEdge);
+    this.screenEdge = new THREE.LineSegments(boundary, new THREE.LineBasicMaterial({ color: '#a7b9ba', transparent: true, opacity: .48, depthWrite: false }));
+    this.screenEdge.name = 'LED-boundary'; this.screenEdge.renderOrder = 1; this.group.add(this.screenEdge);
   }
 
   createEnclosure() {
     // Matte enclosure behind the LED, with only a small visibility fill. It is a visual boundary, not a
     // measured model of the hidden roof trusses, catwalks, or acoustic lining.
-    const radius = BUILDING.diameter / 2 - .25;
-    const geometry = new THREE.SphereGeometry(radius, 64, 40, 0, Math.PI * 2, 0, Math.acos(-BUILDING.centerY / radius));
+    const radius = 68;
+    const geometry = new THREE.SphereGeometry(radius, 64, 40, 0, Math.PI * 2, 0, Math.acos(-16 / radius));
     this.enclosure = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#343c43', emissive: '#11161a', emissiveIntensity: .25, roughness: 1, metalness: 0, side: THREE.BackSide }));
     this.enclosure.name = 'dark-interior-enclosure';
-    this.enclosure.position.set(0, BUILDING.centerY, -13);
+    this.enclosure.position.set(0, 16, 0);
     this.group.add(this.enclosure);
   }
 
@@ -312,7 +287,7 @@ export class Auditorium {
     const radius = BUILDING.diameter / 2;
     const exterior = new THREE.SphereGeometry(radius, 48, 32, 0, Math.PI * 2, 0, Math.acos(-BUILDING.centerY / radius));
     this.exterior = new THREE.LineSegments(new THREE.WireframeGeometry(exterior), new THREE.LineBasicMaterial({ color: '#617d84', transparent: true, opacity: .075, depthWrite: false }));
-    this.exterior.position.set(0, BUILDING.centerY, -13); this.group.add(this.exterior); this.exterior.visible = false;
+    this.exterior.position.set(0, BUILDING.centerY, 0); this.group.add(this.exterior); this.exterior.visible = false;
     exterior.dispose();
   }
 
@@ -325,6 +300,7 @@ export class Auditorium {
     this.setHoverSeats(this.hovered, true);
     this.audience?.exclude(seat);
   }
+  setStage(enabled) { this.stageGroup.visible = enabled; }
   setAudience(enabled, seat = this.selected) {
     this.audienceEnabled = enabled;
     if (enabled && !this.audience) { this.audience = new Audience(this.layout); this.group.add(this.audience); }

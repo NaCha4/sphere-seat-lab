@@ -17,7 +17,7 @@ test('baseline balcony blocks the upper screen from rear 100 seats but not front
   scene.updateMatrixWorld(true);
   const obstacles = [];
   model.group.traverse(o => { if (o.isMesh && !o.isInstancedMesh && o !== model.marker) obstacles.push(o); });
-  const target = new THREE.Vector3(0, BUILDING.screenApex - .5, -18);
+  const target = new THREE.Vector3(0, BUILDING.screenApex - .5, 0);
   const seesUpperScreen = (section, row) => {
     const s = resolveSeat(layout, { section, row });
     const origin = new THREE.Vector3(s.x, s.y + BUILDING.eyeHeight, s.z);
@@ -53,16 +53,20 @@ test('baseline balcony blocks the upper screen from rear 100 seats but not front
     assert.equal(model.enclosure.visible, false, 'overview must expose the interior');
     model.setOverview(false);
     assert.equal(model.enclosure.visible, true);
-    const g = model.screen.geometry, p = g.attributes.position, indices = g.index;
+    const g = model.screen.geometry, p = g.attributes.position;
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
     let area = 0, highest = -Infinity;
-    for (let i = 0; i < indices.count; i += 3) {
-      a.fromBufferAttribute(p, indices.getX(i)); b.fromBufferAttribute(p, indices.getX(i + 1)); c.fromBufferAttribute(p, indices.getX(i + 2));
+    for (let i = 0; i < p.count; i += 3) {
+      a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
       area += b.sub(a).cross(c.sub(a)).length() / 2;
     }
     for (let i = 0; i < p.count; i++) highest = Math.max(highest, p.getY(i));
     assert.ok(Math.abs(area / BUILDING.publishedScreenArea - 1) < .005, 'screen mesh must fit the published surface area');
     assert.ok(Math.abs(highest - BUILDING.screenApex) < .1, 'screen mesh must fit the published apex height');
+    assert.equal(model.stageGroup.visible, false);
+    model.setStage(true); assert.equal(model.stageGroup.visible, true);
+    model.setStage(false);
+    for (let i = 0; i < p.count; i++) assert.ok(p.getY(i) >= -1e-5, 'LED cannot extend below the event floor');
     model.setAudience(true, selected);
     assert.equal(model.audience.visible, true);
     assert.equal(model.audience.meshes[0].count, layout.seats.length);

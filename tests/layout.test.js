@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BUILDING, TIERS, PRESETS, makeLayout, resolveSeat, seatMetrics } from '../src/layout.js';
+import { BUILDING, TIERS, PRESETS, INVENTORY_TOTAL, SEAT_INVENTORY, makeLayout, resolveSeat, seatMetrics } from '../src/layout.js';
 
 const layout = makeLayout();
 
@@ -17,7 +17,7 @@ test('every selectable chair has a unique finite location and stays within the e
   const radius = BUILDING.diameter / 2;
   for (const seat of layout.seats) {
     assert.ok([seat.x, seat.y, seat.z, seat.yaw].every(Number.isFinite), seat.id);
-    assert.ok(Math.hypot(seat.x, seat.y - BUILDING.centerY, seat.z + 13) < radius, `chair outside exterior: ${seat.id}`);
+    assert.ok(Math.hypot(seat.x, seat.y - BUILDING.centerY, seat.z) < radius, `chair outside exterior: ${seat.id}`);
     assert.equal(layout.bySection.get(seat.section).rows.get(seat.row)[seat.number - 1], seat);
   }
 });
@@ -39,14 +39,29 @@ test('invalid shared-link coordinates clamp safely to a real chair', () => {
   }
 });
 
-test('adding retractable front rows preserves fixed-chair identity and coordinates', () => {
-  const cinema = makeLayout({ cinema: true });
-  assert.ok(cinema.seats.length > layout.seats.length);
-  assert.ok(cinema.bySection.get(106).rows.has(1));
+test('published numeric row inventories replace uniform tier ranges', () => {
+  assert.equal(layout.seats.length, 13830);
+  assert.equal(INVENTORY_TOTAL, 13830);
+  assert.deepEqual([...layout.bySection.get(206).rows.keys()], [7,8,9,10,11,12,13,14,15,16]);
+  assert.equal(layout.bySection.get(206).rows.get(7).length, 14);
+  assert.equal(layout.bySection.get(206).rows.get(16).length, 16);
+  assert.equal(layout.bySection.get(406).rows.has(1), false);
+  assert.equal(layout.bySection.get(406).rows.get(23).length, 30);
+  assert.equal(layout.bySection.get(301).rows.get(10).length, 2);
   assert.equal(layout.bySection.get(106).rows.has(1), false);
-  for (const seat of layout.seats) {
-    const same = cinema.byId.get(seat.id);
-    assert.equal(seat.x, same.x); assert.equal(seat.y, same.y); assert.equal(seat.z, same.z);
+  assert.equal(layout.accessibleInventory.reduce((sum, r) => sum + r.count, 0), 178);
+  for (const group of layout.sections) {
+    for (const [row, seats] of group.rows) assert.equal(seats.length, SEAT_INVENTORY[group.id][row]);
+  }
+});
+
+test('estimated rows have usable chair spacing and tier-specific centres', () => {
+  assert.equal(new Set(TIERS.map(t => t.centerZ)).size, 4);
+  for (const group of layout.sections) for (const list of group.rows.values()) {
+    for (let i = 1; i < list.length; i++) {
+      const a = list[i-1], b = list[i];
+      assert.ok(Math.hypot(a.x-b.x, a.z-b.z) > .50, `overlapping chairs ${a.id}`);
+    }
   }
 });
 

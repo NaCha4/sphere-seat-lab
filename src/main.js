@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Auditorium } from './auditorium.js';
-import { BUILDING, TIERS, PRESETS, makeLayout, resolveSeat, seatMetrics } from './layout.js';
+import { BUILDING, TIERS, PRESETS, rowGeometry, makeLayout, resolveSeat, seatMetrics } from './layout.js';
 import { SOURCES, CONFIDENCE } from './evidence.js';
 import { XR_OVERLAY_ORDER, overlayMaterial, pickTarget, createAimPointer } from './interaction.js';
 
@@ -27,17 +27,17 @@ app.innerHTML = `
   <div id="veil"></div>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Sphere Seat Lab 홈">${icon('sphere', 31)}<span>SPHERE<span class="brand-sub">SEAT LAB</span></span></a>
-    <div class="project-heading"><span class="eyebrow">LAS VEGAS / ORIGINAL MODEL</span><h1>좌석에서 만나는 스피어</h1></div>
+    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 02</span><h1>좌석에서 만나는 스피어</h1></div>
     <div class="header-actions"><button class="icon-button" id="research" aria-label="모델 근거와 출처">${icon('info')}</button><button class="vr-button" id="vr">${icon('vr', 20)}<span>VR 시작</span></button></div>
   </header>
   <aside class="sidebar" aria-label="좌석과 보기 설정">
-    <div class="panel-title"><div><span class="eyebrow">EXPLORE THE ORIGINAL</span><h2>나의 관람 위치</h2></div><span class="live-dot" title="원본 모델"></span></div>
+    <div class="panel-title"><div><span class="eyebrow">FIXED BOWL / RECONSTRUCTION</span><h2>나의 관람 위치</h2></div><span class="live-dot" title="원본 모델"></span></div>
     <div class="view-tabs" role="group" aria-label="보기 방식"><button id="seat-view" class="active">${icon('eye', 16)}좌석 시점</button><button id="overview">${icon('cube', 16)}전체 구조</button></div>
     <div class="map-wrap"><svg id="seat-map" viewBox="0 0 300 218" role="img" aria-label="좌석 구역 지도"></svg><span class="map-caption">구역을 눌러 이동하세요</span></div>
     <div class="tier-tabs" role="group" aria-label="객석 층">${TIERS.map(t => `<button data-tier="${t.id}" style="--tier-color:${t.color}">${t.id}</button>`).join('')}</div>
     <div class="location-form">
       <label class="field">구역<select id="section" aria-label="구역"></select></label>
-      <div class="row-controls"><label class="field">행<select id="row" aria-label="행"></select></label><label class="field">좌석<select id="number" aria-label="좌석 번호"></select></label></div>
+      <div class="row-controls"><label class="field">행<select id="row" aria-label="행"></select></label><label class="field">행 내 위치<select id="number" aria-label="행 내 가상 위치"></select></label></div>
     </div>
     <button class="primary-button" id="go-seat">이 좌석에서 보기 ${icon('arrow')}</button>
     <div class="section-divider"></div>
@@ -45,18 +45,18 @@ app.innerHTML = `
     <div class="presets">${PRESETS.map((p, i) => `<button data-preset="${i}"><span>${p.label}</span><small>${p.section} · ${p.row}행</small></button>`).join('')}</div>
     <div class="section-divider"></div>
     <label class="field">스크린 콘텐츠<select id="content"><option value="aurora">오로라 · 구면 전용 화면</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 스크린 콘텐츠</option></select></label>
-    <div class="display-options"><label><input type="checkbox" id="audience">관객 채우기 · 내 자리 제외</label><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="cinema">100층 앞쪽 가변 객석</label></div>
-    <p class="sidebar-note">오로라는 구면 좌표에 맞춰 생성한 화면입니다.<br>구조 구분: 회색 천장 · 회갈색 객석 하부<br>실제 공연 영상은 포함하지 않습니다.</p>
+    <div class="display-options"><label><input type="checkbox" id="audience">관객 채우기 · 내 자리 제외</label><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="event-stage">예시 공연 무대 표시</label></div>
+    <p class="sidebar-note">오로라는 구면 좌표에 맞춰 생성한 화면입니다.<br>구조 구분: 회색 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>실제 티켓 번호·준공 좌표는 미확보입니다.</p>
   </aside>
   <main class="scene-ui">
-    <div class="scene-caption"><span class="tag">BASELINE 01</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
+    <div class="scene-caption"><span class="tag">RESEARCH 02</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
     <div class="scene-tools"><button id="reset" class="tool-button" title="시선 초기화">${icon('reset')}<span>시선 초기화</span></button><button id="screenshot" class="icon-button" title="현재 화면 이미지 저장" aria-label="현재 화면 이미지 저장">${icon('camera')}</button><button id="share" class="icon-button" title="현재 좌석 링크 복사" aria-label="현재 좌석 링크 복사">${icon('link')}</button></div>
-    <div class="seat-card"><div class="seat-card-main"><span class="eyebrow" id="tier-name">TERRACE / 200 LEVEL</span><div><strong id="selected-section">206</strong><span id="selected-position">10행 · 13번</span></div><span class="seat-description" id="seat-description">중앙에서 무대와 화면을 함께 확인하세요.</span></div><div class="seat-stats"><div><span>무대까지</span><strong id="distance">—</strong></div><div><span>눈높이</span><strong id="height">—</strong></div><div><span>좌석 방향과 무대 차이</span><strong id="yaw">—</strong></div></div><div class="metrics-note">거리·각도는 재구성 모델에서 계산한 값입니다.</div></div>
+    <div class="seat-card"><div class="seat-card-main"><span class="eyebrow" id="tier-name">TERRACE / 200 LEVEL</span><div><strong id="selected-section">206</strong><span id="selected-position">10행 · 13번</span></div><span class="seat-description" id="seat-description">중앙에서 무대와 화면을 함께 확인하세요.</span></div><div class="seat-stats"><div><span>전방 기준점까지</span><strong id="distance">—</strong></div><div><span>모델상 눈높이</span><strong id="height">—</strong></div><div><span>기준점 방향 차이</span><strong id="yaw">—</strong></div></div><div class="metrics-note">거리·각도는 추정 좌표의 계산값이며 실측값이 아닙니다.</div></div>
     <div class="bottom-line"><span class="interaction-hint" id="hint">마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화</span><button id="model-info">공개 자료 기반 재구성 ${icon('info', 13)}</button></div>
   </main>
   <button class="mobile-panel-button" id="mobile-panel">${icon('eye', 16)}좌석 선택</button>
   <div id="toast" role="status" aria-live="polite"></div>
-  <dialog id="info-dialog"><button class="dialog-close icon-button" aria-label="닫기">${icon('close')}</button><div class="dialog-kicker">ABOUT THIS RECONSTRUCTION</div><h2>원본에 가까워지기 위한 기준</h2><p class="dialog-intro">실제 스피어의 구조와 관람 위치를 살펴보는 수업용 웹 모델입니다. 공개 자료로 확인한 정보와 시각 자료를 바탕으로 추정한 정보를 구분합니다.</p><div class="evidence-levels">${CONFIDENCE.map(([title, body], i) => `<div><span class="level-number">0${i + 1}</span><section><h3>${title}</h3><p>${body}</p></section></div>`).join('')}</div><div class="important-note">실측 CAD/BIM이 공개된 모델은 아닙니다. 실제 티켓 좌석 선택이나 공학적 검증에 사용할 수 없으며, 화면 시야와 가림은 재구성한 치수에 따라 달라집니다. 기본 무대·가변 객석은 특정 공연의 설치를 복제하지 않은 범용 구성입니다.</div><h3 class="source-heading">조사 출처 <span>2026.10.20 확인</span></h3><div class="sources">${SOURCES.map((s, i) => `<a href="${s.url}" target="_blank" rel="noopener noreferrer"><span class="source-number">${String(i + 1).padStart(2, '0')}</span><div><small>${s.type}</small><strong>${s.name} ↗</strong><p>${s.note}</p></div></a>`).join('')}</div><p class="educational-note">Independent educational reconstruction. Not affiliated with or endorsed by Sphere Entertainment. 실제 공연 영상과 원본 도면 이미지는 이 사이트에 재배포하지 않습니다.</p></dialog>
+  <dialog id="info-dialog"><button class="dialog-close icon-button" aria-label="닫기">${icon('close')}</button><div class="dialog-kicker">ABOUT THIS RECONSTRUCTION</div><h2>공식 데이터와 추정 구조</h2><p class="dialog-intro">공식 예매 데이터의 39개 구역·숫자 행·행별 좌석 수를 적용했습니다. 13,830개 일반 좌석 위치를 표시하며, 별도 WC 178개 위치와 가변 앞좌석은 좌표 미확보로 생성하지 않습니다. 전체 공식 수용 인원과는 집계 범위가 다릅니다.</p><div class="evidence-levels">${CONFIDENCE.map(([title, body], i) => `<div><span class="level-number">0${i + 1}</span><section><h3>${title}</h3><p>${body}</p></section></div>`).join('')}</div><div class="important-note">준공 CAD/BIM은 확보하지 못했습니다. 스크린·객석 단면은 2019 설계 그림을 이후 공개 수치로 환산한 추정이며 현재 준공 구조와 일치하는지는 미검증입니다. 행 내 번호는 실제 티켓 번호가 아닙니다. 이 모델만으로 실제 시야·가림의 정도를 입증할 수 없습니다. 예시 무대는 기본적으로 꺼져 있습니다.</div><h3 class="source-heading">조사 출처 <span>2026.10.20 확인</span></h3><div class="sources">${SOURCES.map((s, i) => `<a href="${s.url}" target="_blank" rel="noopener noreferrer"><span class="source-number">${String(i + 1).padStart(2, '0')}</span><div><small>${s.type}</small><strong>${s.name} ↗</strong><p>${s.note}</p></div></a>`).join('')}</div><p class="educational-note">Independent educational reconstruction. Not affiliated with or endorsed by Sphere Entertainment. 실제 공연 영상과 원본 도면 이미지는 이 사이트에 재배포하지 않습니다.</p></dialog>
 `;
 
 const $ = id => document.getElementById(id);
@@ -81,21 +81,22 @@ function toast(message) {
 }
 
 function drawMap() {
-  const scale = 1.53, cx = 150, cy = 107;
-  const pos = (r, a) => [cx + Math.sin(a) * r * scale, cy + Math.cos(a) * r * scale * .77];
+  const pos = (x, z) => [150 + x * 1.78, 123 + z * 1.5];
   const arcPath = (s, r0, r1) => {
-    const [a, b, c, d] = [pos(r0, s.start), pos(r1, s.start), pos(r1, s.end), pos(r0, s.end)];
-    return `M${a} L${b} A${r1 * scale},${r1 * scale * .77} 0 0 0 ${c} L${d} A${r0 * scale},${r0 * scale * .77} 0 0 1 ${a} Z`;
+    const points = [];
+    for (let i = 0; i <= 16; i++) { const a = s.start + (s.end - s.start) * i / 16; points.push(pos(Math.sin(a) * r0, s.tier.centerZ + Math.cos(a) * r0)); }
+    for (let i = 16; i >= 0; i--) { const a = s.start + (s.end - s.start) * i / 16; points.push(pos(Math.sin(a) * r1, s.tier.centerZ + Math.cos(a) * r1)); }
+    return 'M' + points.map(p => p.join(',')).join('L') + 'Z';
   };
-  let svg = '<text x="150" y="31" text-anchor="middle" fill="#70848d" font-size="8" letter-spacing="2">SCREEN / STAGE</text><path d="M122 41h56l-4 6h-48Z" fill="#63727b"/>';
+  let svg = '<text x="150" y="25" text-anchor="middle" fill="#70848d" font-size="8" letter-spacing="2">SCREEN / FRONT</text>';
   for (const s of [...layout.sections].reverse()) {
-    const r0 = s.tier.radius + (s.range.first - 1) * s.tier.tread;
-    const r1 = s.tier.radius + (s.range.last - 1) * s.tier.tread;
+    const r0 = rowGeometry(s.tier, s.range.first).radius - .35;
+    const r1 = rowGeometry(s.tier, s.range.last).radius + .35;
     const selected = currentSeat.section === s.id;
-    svg += `<path d="${arcPath(s, r0, r1 + .8)}" fill="${selected ? '#b4ddcd' : s.tier.color}" fill-opacity="${selected ? 1 : .22}" stroke="${selected ? '#d8eee4' : '#68808a'}" stroke-width="${selected ? 1 : .3}" data-map-section="${s.id}" tabindex="0" role="button" aria-label="${s.id} 구역"/>`;
-    if (selected) { const p = pos((r0 + r1) / 2, s.center); svg += `<text x="${p[0]}" y="${p[1] + 3}" text-anchor="middle" font-size="8" font-weight="700" fill="#071512" pointer-events="none">${s.id}</text>`; }
+    svg += `<path d="${arcPath(s, r0, r1)}" fill="${selected ? '#b4ddcd' : s.tier.color}" fill-opacity="${selected ? 1 : .22}" stroke="${selected ? '#d8eee4' : '#68808a'}" stroke-width="${selected ? 1 : .3}" data-map-section="${s.id}" tabindex="0" role="button" aria-label="${s.id} 구역"/>`;
+    if (selected) { const r = (r0 + r1) / 2, p = pos(Math.sin(s.center) * r, s.tier.centerZ + Math.cos(s.center) * r); svg += `<text x="${p[0]}" y="${p[1] + 3}" text-anchor="middle" font-size="8" font-weight="700" fill="#071512" pointer-events="none">${s.id}</text>`; }
   }
-  const marker = pos(currentSeat.radius, currentSeat.theta);
+  const marker = pos(currentSeat.x, currentSeat.z);
   svg += `<circle cx="${marker[0]}" cy="${marker[1]}" r="2.4" fill="#edcc91" stroke="#111b1d" stroke-width="1"/>`;
   $('seat-map').innerHTML = svg;
   $('seat-map').querySelectorAll('[data-map-section]').forEach(el => {
@@ -109,13 +110,13 @@ function populateInputs() {
   $('section').innerHTML = Array.from({ length: t.last - t.first + 1 }, (_, i) => `<option value="${t.first + i}">${t.first + i} 구역</option>`).join('');
   $('section').value = String(currentSeat.section);
   $('row').innerHTML = Array.from(group.rows.keys(), r => `<option value="${r}">${r}행</option>`).join(''); $('row').value = String(currentSeat.row);
-  $('number').innerHTML = group.rows.get(currentSeat.row).map(s => `<option value="${s.number}">${s.number}번</option>`).join(''); $('number').value = String(currentSeat.number);
+  $('number').innerHTML = group.rows.get(currentSeat.row).map(s => `<option value="${s.number}">${s.number}번째</option>`).join(''); $('number').value = String(currentSeat.number);
   document.querySelectorAll('[data-tier]').forEach(b => { b.classList.toggle('active', Number(b.dataset.tier) === currentSeat.tier); b.setAttribute('aria-pressed', String(Number(b.dataset.tier) === currentSeat.tier)); });
 }
 
 function updateInfo() {
   const tier = TIERS.find(t => t.id === currentSeat.tier), metrics = seatMetrics(currentSeat);
-  $('selected-section').textContent = currentSeat.section; $('selected-position').textContent = `${currentSeat.row}행 · ${currentSeat.number}번`;
+  $('selected-section').textContent = currentSeat.section; $('selected-position').textContent = `${currentSeat.row}행 · ${currentSeat.number}번째`;
   $('tier-name').textContent = `${tier.name.toUpperCase()} / ${tier.id} LEVEL`;
   $('distance').innerHTML = `${metrics.distance.toFixed(1)}<small>m</small>`;
   $('height').innerHTML = `${metrics.elevation.toFixed(1)}<small>m</small>`;
@@ -213,7 +214,7 @@ function createXrPanel() {
 
 function updateHoverCaption(seat) {
   if (!hoverCaption) return;
-  const text = seat ? `${seat.section} 구역 · ${seat.row}행 · ${seat.number}번  /  핀치·트리거로 이동` : '좌석을 가리키면 민트색으로 빛납니다 · 핀치·트리거로 이동';
+  const text = seat ? `${seat.section} 구역 · ${seat.row}행 · ${seat.number}번째  /  핀치·트리거로 이동` : '좌석을 가리키면 민트색으로 빛납니다 · 핀치·트리거로 이동';
   if (hoverCaption.text === text) return;
   hoverCaption.text = text;
   const ctx = hoverCaption.canvas.getContext('2d');
@@ -363,7 +364,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, audienceEnabled, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, audienceEnabled, modelRevision: 'research-02', stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
 }
 
 $('section').addEventListener('change', () => setSeat(resolveSeat(layout, { section: $('section').value, row: currentSeat.row })));
@@ -376,11 +377,7 @@ $('seat-view').addEventListener('click', () => setView('seat')); $('overview').a
 $('content').addEventListener('change', () => { contentMode = $('content').value; model?.setScreen(contentMode); });
 $('audience').addEventListener('change', () => setAudienceEnabled($('audience').checked));
 $('labels').addEventListener('change', () => { labelsVisible = $('labels').checked; model?.setOverview(view === 'overview', labelsVisible); });
-$('cinema').addEventListener('change', () => {
-  clearAimPreview(); layout = makeLayout({ cinema: $('cinema').checked }); model?.dispose(); model = new Auditorium(scene, layout, { screenMode: contentMode });
-  setSeat(resolveSeat(layout, currentSeat), false); model.setOverview(view === 'overview', labelsVisible);
-  model.setAudience(audienceEnabled, currentSeat);
-});
+$('event-stage').addEventListener('change', () => model?.setStage($('event-stage').checked));
 $('vr').addEventListener('click', startVr);
 const openInfo = () => $('info-dialog').showModal(); $('research').addEventListener('click', openInfo); $('model-info').addEventListener('click', openInfo);
 document.querySelector('.dialog-close').addEventListener('click', () => $('info-dialog').close());
