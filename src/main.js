@@ -45,7 +45,7 @@ app.innerHTML = `
     <div class="presets">${PRESETS.map((p, i) => `<button data-preset="${i}"><span>${p.label}</span><small>${p.section} · ${p.row}행</small></button>`).join('')}</div>
     <div class="section-divider"></div>
     <label class="field">스크린 콘텐츠<select id="content"><option value="aurora">오로라 · 구면 전용 화면</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 스크린 콘텐츠</option></select></label>
-    <div class="display-options"><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="cinema">100층 앞쪽 가변 객석</label></div>
+    <div class="display-options"><label><input type="checkbox" id="audience">관객 채우기 · 내 자리 제외</label><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="cinema">100층 앞쪽 가변 객석</label></div>
     <p class="sidebar-note">오로라는 구면 좌표에 맞춰 생성한 화면입니다.<br>구조 구분: 회색 천장 · 회갈색 객석 하부<br>실제 공연 영상은 포함하지 않습니다.</p>
   </aside>
   <main class="scene-ui">
@@ -63,7 +63,7 @@ const $ = id => document.getElementById(id);
 let layout = makeLayout();
 const query = new URLSearchParams(location.search);
 let currentSeat = resolveSeat(layout, { section: query.get('section') || 206, row: query.get('row') || 10, number: query.get('seat') });
-let view = 'seat', contentMode = 'aurora', labelsVisible = false;
+let view = 'seat', contentMode = 'aurora', labelsVisible = false, audienceEnabled = false;
 let renderer, model, orbit;
 const scene = new THREE.Scene(); scene.background = new THREE.Color('#030405');
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, .05, 550);
@@ -177,6 +177,11 @@ function moveRelative({ section = 0, row = 0, number = 0 } = {}) {
   setSeat(resolveSeat(layout, { section: nextSection, row: currentSeat.row + row, number: section ? null : currentSeat.number + number }));
 }
 
+function setAudienceEnabled(enabled) {
+  audienceEnabled = enabled; $('audience').checked = enabled;
+  model?.setAudience(enabled, currentSeat);
+}
+
 function createXrPanel() {
   xrPanel = new THREE.Group(); xrPanel.visible = false; scene.add(xrPanel);
   xrPanel.renderOrder = XR_OVERLAY_ORDER;
@@ -185,6 +190,7 @@ function createXrPanel() {
     ['앞 행', () => moveRelative({ row: -1 })], ['뒤 행', () => moveRelative({ row: 1 })],
     ['다른 층', () => { const i = TIERS.findIndex(t => t.id === currentSeat.tier); const t = TIERS[(i + 1) % TIERS.length]; setSeat(resolveSeat(layout, { section: Math.floor((t.first + t.last) / 2), row: 10 })); }],
     ['VR 종료', () => renderer.xr.getSession()?.end()],
+    ['관객 켜기/끄기', () => setAudienceEnabled(!audienceEnabled)],
   ];
   actions.forEach(([text, action], i) => {
     const canvas = document.createElement('canvas'); canvas.width = 384; canvas.height = 144;
@@ -192,7 +198,8 @@ function createXrPanel() {
     ctx.fillStyle = '#e3f0e9'; ctx.font = '500 47px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 192, 72);
     const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(.43, .16), overlayMaterial({ map }));
-    mesh.position.set((i % 3 - 1) * .46, Math.floor(i / 3) * -.19, 0); mesh.userData.action = action; mesh.renderOrder = XR_OVERLAY_ORDER;
+    const column = i === actions.length - 1 && actions.length % 3 === 1 ? 1 : i % 3;
+    mesh.position.set((column - 1) * .46, Math.floor(i / 3) * -.19, 0); mesh.userData.action = action; mesh.renderOrder = XR_OVERLAY_ORDER;
     xrPanel.add(mesh); xrButtons.push(mesh);
   });
   const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 100;
@@ -356,7 +363,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, audienceEnabled, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
 }
 
 $('section').addEventListener('change', () => setSeat(resolveSeat(layout, { section: $('section').value, row: currentSeat.row })));
@@ -367,10 +374,12 @@ document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('clic
 $('go-seat').addEventListener('click', () => { setView('seat'); document.body.classList.remove('panel-open'); });
 $('seat-view').addEventListener('click', () => setView('seat')); $('overview').addEventListener('click', () => setView('overview')); $('reset').addEventListener('click', resetView);
 $('content').addEventListener('change', () => { contentMode = $('content').value; model?.setScreen(contentMode); });
+$('audience').addEventListener('change', () => setAudienceEnabled($('audience').checked));
 $('labels').addEventListener('change', () => { labelsVisible = $('labels').checked; model?.setOverview(view === 'overview', labelsVisible); });
 $('cinema').addEventListener('change', () => {
   clearAimPreview(); layout = makeLayout({ cinema: $('cinema').checked }); model?.dispose(); model = new Auditorium(scene, layout, { screenMode: contentMode });
   setSeat(resolveSeat(layout, currentSeat), false); model.setOverview(view === 'overview', labelsVisible);
+  model.setAudience(audienceEnabled, currentSeat);
 });
 $('vr').addEventListener('click', startVr);
 const openInfo = () => $('info-dialog').showModal(); $('research').addEventListener('click', openInfo); $('model-info').addEventListener('click', openInfo);

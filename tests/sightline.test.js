@@ -63,5 +63,24 @@ test('baseline balcony blocks the upper screen from rear 100 seats but not front
     for (let i = 0; i < p.count; i++) highest = Math.max(highest, p.getY(i));
     assert.ok(Math.abs(area / BUILDING.publishedScreenArea - 1) < .005, 'screen mesh must fit the published surface area');
     assert.ok(Math.abs(highest - BUILDING.screenApex) < .1, 'screen mesh must fit the published apex height');
+    model.setAudience(true, selected);
+    assert.equal(model.audience.visible, true);
+    assert.equal(model.audience.meshes[0].count, layout.seats.length);
+    const transform = new THREE.Matrix4();
+    model.audience.meshes[0].getMatrixAt(selected.index, transform);
+    assert.equal(transform.determinant(), 0, 'my seat must not contain a rendered person');
+    model.audience.meshes[0].getMatrixAt(pointed.index, transform);
+    assert.ok(transform.determinant() > 0, 'other seats must contain a person');
+    model.audience.updateMatrixWorld(true);
+    const head = model.audience.headCenter(pointed);
+    const headRay = new THREE.Raycaster(head.clone().add(new THREE.Vector3(0, 0, -1)), new THREE.Vector3(0, 0, 1));
+    assert.ok(headRay.intersectObject(model.audience.meshes[0]).some(hit => hit.instanceId === pointed.index), 'the head must actually occlude a sightline');
+    model.select(pointed);
+    model.audience.meshes[0].getMatrixAt(selected.index, transform);
+    assert.ok(transform.determinant() > 0, 'the previous seat is filled after moving');
+    model.audience.meshes[0].getMatrixAt(pointed.index, transform);
+    assert.equal(transform.determinant(), 0, 'the new seat becomes empty');
+    model.setAudience(false);
+    assert.equal(model.audience.visible, false);
   } finally { model.dispose(); }
 });

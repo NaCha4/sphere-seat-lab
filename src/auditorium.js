@@ -2,6 +2,18 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING, TIERS, radians } from './layout.js';
 import { createAuroraMaterial } from './screen-content.js';
+import { Audience } from './audience.js';
+
+function roundedPanel(width, height, depth, radius) {
+  const x = -width / 2, y = -height / 2, r = radius, shape = new THREE.Shape();
+  shape.moveTo(x + r, y); shape.lineTo(x + width - r, y);
+  shape.quadraticCurveTo(x + width, y, x + width, y + r);
+  shape.lineTo(x + width, y + height - r); shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  shape.lineTo(x + r, y + height); shape.quadraticCurveTo(x, y + height, x, y + height - r);
+  shape.lineTo(x, y + r); shape.quadraticCurveTo(x, y, x + r, y);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth, steps: 1, curveSegments: 2, bevelEnabled: false });
+  geometry.translate(0, 0, -depth / 2); return geometry;
+}
 
 function sector(inner, outer, start, end, top, bottom = top - .2, segments = 10) {
   const p = [], indices = [];
@@ -230,23 +242,32 @@ export class Auditorium {
 
   createSeats() {
     const count = this.layout.seats.length;
+    const seatPad = roundedPanel(.49, .45, .14, .055); seatPad.rotateX(-Math.PI / 2);
     const parts = [
-      { geometry: new THREE.BoxGeometry(.47, .14, .45), position: [0, .47, -.015] },
-      { geometry: new THREE.BoxGeometry(.48, .61, .13), position: [0, .8, .205], tilt: -.09 },
-      { geometry: new THREE.BoxGeometry(.055, .075, .48), position: [-.278, .64, .015] },
-      { geometry: new THREE.BoxGeometry(.055, .075, .48), position: [.278, .64, .015] },
-      { geometry: new THREE.BoxGeometry(.055, .42, .055), position: [0, .23, .11] },
+      { geometry: seatPad, position: [0, .47, -.015], fabric: true },
+      { geometry: roundedPanel(.49, .62, .115, .085), position: [0, .80, .205], tilt: -.11, fabric: true },
+      { geometry: new THREE.PlaneGeometry(.39, .42).rotateY(Math.PI), position: [0, .83, .143], tilt: -.11, fabric: true },
+      { geometry: new THREE.BoxGeometry(.074, .075, .42), position: [-.281, .66, -.005] },
+      { geometry: new THREE.BoxGeometry(.074, .075, .42), position: [.281, .66, -.005] },
+      { geometry: new THREE.CylinderGeometry(.022, .022, .25, 4, 1, true), position: [-.281, .50, .09] },
+      { geometry: new THREE.CylinderGeometry(.022, .022, .25, 4, 1, true), position: [.281, .50, .09] },
+      { geometry: new THREE.CylinderGeometry(.036, .047, .40, 4, 1, true), position: [0, .22, .10] },
+      { geometry: new THREE.BoxGeometry(.36, .035, .22), position: [0, .037, .10] },
+      { geometry: new THREE.RingGeometry(.039, .051, 8), position: [.281, .706, -.16], tilt: -Math.PI / 2 },
     ];
-    const mat = new THREE.MeshStandardMaterial({ color: '#d0d8df', roughness: .78, metalness: .04 });
+    const fabric = new THREE.MeshStandardMaterial({ color: '#e0e8ee', roughness: .90, metalness: 0 });
+    const frame = new THREE.MeshStandardMaterial({ color: '#37434b', roughness: .48, metalness: .42 });
     const o = new THREE.Object3D(), part = new THREE.Object3D();
     const baseColors = new Map(TIERS.map(t => [t.id, new THREE.Color(t.id === 100 ? '#253747' : t.id === 200 ? '#263b4e' : t.id === 300 ? '#2d3d57' : '#35405a')]));
     parts.forEach((def, partIndex) => {
-      const mesh = new THREE.InstancedMesh(def.geometry, mat, count);
+      const mesh = new THREE.InstancedMesh(def.geometry, def.fabric ? fabric : frame, count);
+      mesh.userData.baseColors = def.fabric ? baseColors : new Map(TIERS.map(t => [t.id, new THREE.Color('#9aa8b3')]));
       mesh.name = partIndex === 0 ? 'selectable-seats' : 'chair-detail';
       for (const s of this.layout.seats) {
         o.position.set(s.x, s.y, s.z); o.rotation.set(0, s.yaw, 0); o.updateMatrix();
         part.position.fromArray(def.position); part.rotation.set(def.tilt || 0, 0, 0); part.updateMatrix();
-        mesh.setMatrixAt(s.index, o.matrix.clone().multiply(part.matrix)); mesh.setColorAt(s.index, baseColors.get(s.tier));
+        mesh.setMatrixAt(s.index, o.matrix.clone().multiply(part.matrix));
+        mesh.setColorAt(s.index, def.fabric ? baseColors.get(s.tier) : new THREE.Color('#9aa8b3'));
       }
       mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; mesh.computeBoundingSphere();
       this.group.add(mesh); this.chairMeshes.push(mesh);
@@ -297,11 +318,17 @@ export class Auditorium {
 
   select(seat) {
     for (const mesh of this.chairMeshes) {
-      if (this.selected) mesh.setColorAt(this.selected.index, this.baseColors.get(this.selected.tier));
+      if (this.selected) mesh.setColorAt(this.selected.index, mesh.userData.baseColors.get(this.selected.tier));
       mesh.setColorAt(seat.index, new THREE.Color('#edd096')); mesh.instanceColor.needsUpdate = true;
     }
     this.selected = seat; this.marker.position.set(seat.x, seat.y + .015, seat.z);
     this.setHoverSeats(this.hovered, true);
+    this.audience?.exclude(seat);
+  }
+  setAudience(enabled, seat = this.selected) {
+    this.audienceEnabled = enabled;
+    if (enabled && !this.audience) { this.audience = new Audience(this.layout); this.group.add(this.audience); }
+    if (this.audience) { this.audience.visible = enabled; if (seat) this.audience.exclude(seat); }
   }
   setHoverSeats(seats, force = false) {
     const next = [...new Map(seats.filter(Boolean).map(s => [s.id, s])).values()].slice(0, 2);
@@ -310,7 +337,7 @@ export class Auditorium {
     const ids = new Set(next.map(s => s.id));
     for (const mesh of this.chairMeshes) {
       for (const seat of affected.values()) {
-        const color = ids.has(seat.id) ? new THREE.Color('#77ffe0') : this.selected?.id === seat.id ? new THREE.Color('#edd096') : this.baseColors.get(seat.tier);
+        const color = ids.has(seat.id) ? new THREE.Color('#77ffe0') : this.selected?.id === seat.id ? new THREE.Color('#edd096') : mesh.userData.baseColors.get(seat.tier);
         mesh.setColorAt(seat.index, color);
       }
       if (affected.size) mesh.instanceColor.needsUpdate = true;
