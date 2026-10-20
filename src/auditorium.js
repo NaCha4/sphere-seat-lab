@@ -106,9 +106,17 @@ export function screenTexture(mode = 'earth') {
 export class Auditorium {
   constructor(scene, layout, { screenMode = 'aurora' } = {}) {
     this.scene = scene; this.layout = layout; this.group = new THREE.Group();
-    this.group.name = 'Original Sphere reconstruction'; scene.add(this.group);
+    this.group.name = 'Sphere world'; scene.add(this.group);
+    this.createWorld(layout); this.createScreen(screenMode); this.createEnclosure(); this.createExterior();
+  }
+
+  createWorld(layout) {
+    this.layout = layout; this.selected = null;
+    const root = this.group;
+    this.worldGroup = new THREE.Group(); this.worldGroup.name = layout.world.id; root.add(this.worldGroup);
+    this.group = this.worldGroup;
     this.pickables = []; this.chairMeshes = []; this.labels = new THREE.Group(); this.group.add(this.labels);
-    this.createArchitecture(); this.createSeats(); this.createScreen(screenMode); this.createEnclosure(); this.createExterior();
+    this.createArchitecture(); this.createSeats();
     const ring = new THREE.Mesh(new THREE.RingGeometry(.42, .49, 32), new THREE.MeshBasicMaterial({ color: '#eac78d', side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; this.marker = ring; this.group.add(ring);
     this.hovered = [];
@@ -122,6 +130,19 @@ export class Auditorium {
       }
       this.group.add(group); return group;
     });
+    this.group = root;
+  }
+
+  setLayout(layout) {
+    if (layout === this.layout) return;
+    const selectedId = this.selected?.id, stage = this.stageGroup.visible;
+    const labels = this.labels.visible, overview = this.overview, audience = this.audienceEnabled;
+    this.group.remove(this.worldGroup);
+    disposeGroup(this.worldGroup, [...this.bankShells, ...this.aisleShells].map(s => s.geometry));
+    this.audience = null;
+    this.createWorld(layout);
+    if (selectedId && layout.byId.has(selectedId)) this.select(layout.byId.get(selectedId));
+    this.setStage(stage); this.setAudience(audience); this.setOverview(overview, labels);
   }
 
   createArchitecture() {
@@ -344,7 +365,7 @@ export class Auditorium {
   setStage(enabled) { this.stageGroup.visible = enabled; }
   setAudience(enabled, seat = this.selected) {
     this.audienceEnabled = enabled;
-    if (enabled && !this.audience) { this.audience = new Audience(this.layout); this.group.add(this.audience); }
+    if (enabled && !this.audience) { this.audience = new Audience(this.layout); this.worldGroup.add(this.audience); }
     if (this.audience) { this.audience.visible = enabled; if (seat) this.audience.exclude(seat); }
   }
   setHoverSeats(seats, force = false) {
@@ -385,6 +406,7 @@ export class Auditorium {
   getVideoState() { return this.movie?.getState() ?? { active: false, requested: true, ready: false, playing: false, status: 'inactive' }; }
   setVideoPlaying(playing) { return this.movie?.setPlaying(playing); }
   setOverview(on, labels = true) {
+    this.overview = on;
     this.screenMaterial.opacity = on ? .16 : 1; this.screenMaterial.depthWrite = !on;
     if (this.screenMaterial.uniforms?.uOpacity) this.screenMaterial.uniforms.uOpacity.value = this.screenMaterial.opacity;
     this.exterior.visible = on; this.labels.visible = on || labels;
@@ -392,13 +414,19 @@ export class Auditorium {
   }
   dispose() {
     this.scene.remove(this.group);
-    const geometries = new Set([...this.bankShells, ...this.aisleShells].map(s => s.geometry)), materials = new Set(), textures = new Set();
-    this.group.traverse(o => {
-      if (o.geometry) geometries.add(o.geometry);
-      if (o.isInstancedMesh) o.dispose();
-      for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) { materials.add(m); if (m.map) textures.add(m.map); }
-    });
-    if (this.movie) { textures.delete(this.movie.texture); this.movie.dispose(); }
-    geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose());
+    disposeGroup(this.group, [...this.bankShells, ...this.aisleShells].map(s => s.geometry), this.movie?.texture);
+    this.movie?.dispose();
   }
+}
+
+function disposeGroup(group, extra = [], keepTexture = null) {
+  const geometries = new Set(extra), materials = new Set(), textures = new Set();
+  group.traverse(o => {
+    if (o.geometry) geometries.add(o.geometry);
+    if (o.isInstancedMesh) o.dispose();
+    for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) {
+      materials.add(m); if (m.map && m.map !== keepTexture) textures.add(m.map);
+    }
+  });
+  geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose());
 }

@@ -4,7 +4,10 @@ import * as THREE from 'three';
 import { BUILDING, makeLayout, rowGeometry, rowPoint } from '../src/layout.js';
 import { bankBounds, bankBottom, bankPoint, createBankGeometry, createAisleGeometry } from '../src/bowl-geometry.js';
 
-const layout = makeLayout();
+import { WORLDS } from '../src/worlds.js';
+
+for (const world of WORLDS) {
+const layout = makeLayout(world.id);
 const banks = layout.sections.map(section => ({ section, geometry: createBankGeometry(section) }));
 const aisles = [];
 for (let i = 1; i < layout.sections.length; i++) {
@@ -12,7 +15,7 @@ for (let i = 1; i < layout.sections.length; i++) {
   if (left.tier === right.tier) aisles.push({ left, right, geometry: createAisleGeometry(left, right) });
 }
 
-test('every seating bank and stair flight is a consistently oriented, closed solid', () => {
+test(`${world.id}: every seating bank and stair flight is a consistently oriented, closed solid`, () => {
   assert.equal(banks.length, 39); assert.equal(aisles.length, 35);
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   for (const shell of [...banks, ...aisles]) {
@@ -38,7 +41,7 @@ test('every seating bank and stair flight is a consistently oriented, closed sol
   }
 });
 
-test('row ends, row centres, side walls and back walls all meet the seating bank', () => {
+test(`${world.id}: row ends, row centres, side walls and back walls all meet the seating bank`, () => {
   const material = new THREE.MeshBasicMaterial({ side: THREE.FrontSide });
   for (const { section: s, geometry } of banks) {
     const mesh = new THREE.Mesh(geometry,material); mesh.updateMatrixWorld(true);
@@ -69,7 +72,7 @@ test('row ends, row centres, side walls and back walls all meet the seating bank
   material.dispose();
 });
 
-test('all inter-section stair flights have walkable top faces', () => {
+test(`${world.id}: all inter-section stair flights have walkable top faces`, () => {
   const material = new THREE.MeshBasicMaterial();
   for (const { left, right, geometry } of aisles) {
     const mesh = new THREE.Mesh(geometry,material); mesh.updateMatrixWorld(true);
@@ -87,7 +90,7 @@ test('all inter-section stair flights have walkable top faces', () => {
   material.dispose();
 });
 
-test('no selectable seat places the eyes or top of the head inside another seating bank', () => {
+test(`${world.id}: no selectable seat places the eyes or top of the head inside another seating bank`, () => {
   const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
   const meshes = banks.map(bank => {
     bank.geometry.computeBoundingBox();
@@ -107,3 +110,5 @@ test('no selectable seat places the eyes or top of the head inside another seati
   }
   material.dispose();
 });
+
+}

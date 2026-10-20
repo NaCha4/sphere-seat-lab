@@ -1,6 +1,7 @@
 import inventory from './data/seat-inventory.json' with { type: 'json' };
 import plan from './data/plan-angles.json' with { type: 'json' };
 import { lowerPoint, LOWER_KNOTS, LOWER_TREAD, LOWER_LENGTH, pixelToPlan, PRODUCTION_PLAN } from './production-plan.js';
+import { getWorld, warpPlan } from './worlds.js';
 
 // Published dimensions. Interior estimates are documented in RECONSTRUCTION_AUDIT.md.
 export const BUILDING = Object.freeze({
@@ -64,11 +65,11 @@ export function sectionAngles(tier, section, row = 12) {
 // Shared by the actual meshes, seat map, labels and chair placement. A traced
 // faceted lower contour replaces the old circular approximation.
 export function rowPoint(tier, row, parameter) {
-  if (tier.id === 100) return lowerPoint(row, parameter);
+  if (tier.id === 100) return warpPlan(lowerPoint(row, parameter), tier.worldGeometry);
   const { radius } = rowGeometry(tier, row);
   // Construction drawings show polygonal rows. Interpolate at fixed 4° knots.
   const step = radians(4), a = Math.floor(parameter / step) * step, b = a + step, t = (parameter - a) / step;
-  return { x: radius * (Math.sin(a) * (1 - t) + Math.sin(b) * t), z: tier.centerZ + radius * (Math.cos(a) * (1 - t) + Math.cos(b) * t) };
+  return warpPlan({ x: radius * (Math.sin(a) * (1 - t) + Math.sin(b) * t), z: tier.centerZ + radius * (Math.cos(a) * (1 - t) + Math.cos(b) * t) }, tier.worldGeometry);
 }
 
 export function rowPath(tier, row, start, end) {
@@ -87,10 +88,12 @@ export function sampleRow(path, distance) {
   }
 }
 
-export function makeLayout() {
+export function makeLayout(worldId = 'original') {
+  const world = getWorld(worldId);
+  const tiers = world.geometry ? TIERS.map(t => ({ ...t, worldGeometry: world.geometry })) : TIERS;
   const seats = [], sections = [], accessibleInventory = [];
   const byId = new Map(), bySection = new Map();
-  for (const tier of TIERS) {
+  for (const tier of tiers) {
     for (let section = tier.first; section <= tier.last; section++) {
       const angles = sectionAngles(tier, section), range = rowRange(tier, section);
       const group = { id: section, tier, ...angles, range, rows: new Map(), seats: [] };
@@ -104,9 +107,13 @@ export function makeLayout() {
         const path = rowPath(tier, row, rowBounds.start, rowBounds.end);
         const length = path.slice(1).reduce((sum, b, i) => sum + Math.hypot(b.x - path[i].x, b.z - path[i].z), 0);
         const span = Math.min(count * BUILDING.seatPitch, length - (tier.id === 100 ? .06 : BUILDING.aisleWidth));
+        // Shift alternating rows only into existing spare deck width. Dense
+        // rows retain their pitch; no seat is pushed into an aisle to stagger it.
+        const spare = Math.max(0, (length - span - (tier.id === 100 ? .06 : BUILDING.aisleWidth)) / 2);
+        const stagger = Math.min(spare, (tier.worldGeometry?.stagger ?? 0) * span / count) * (row % 2 ? 1 : -1);
         const rowSeats = [];
         for (let number = 1; number <= count; number++) {
-          const position = sampleRow(path, (length - span) / 2 + (number - .5) * span / count);
+          const position = sampleRow(path, (length - span) / 2 + (number - .5) * span / count + stagger);
           const theta = position.yaw;
           const seat = {
             id: `${section}-${row}-${number}`, index: seats.length,
@@ -122,7 +129,7 @@ export function makeLayout() {
       sections.push(group); bySection.set(section, group);
     }
   }
-  return { seats, sections, byId, bySection, accessibleInventory };
+  return { world, tiers, seats, sections, byId, bySection, accessibleInventory };
 }
 
 export function resolveSeat(layout, { section = 206, row = 10, number = null } = {}) {

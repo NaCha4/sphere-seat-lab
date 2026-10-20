@@ -80,5 +80,25 @@ test('the decoded movie replaces the loading image without resetting overview or
     model.setScreen('aurora'); assert.equal(video.paused,true);
     model.setScreen('video'); assert.equal(players,1,'reuse the player when changing screen contents');
     assert.equal(model.screenMaterial.map,model.movie.texture);
+    const selected = model.layout.byId.get('210-10-10');
+    model.select(selected); model.setAudience(true); model.setStage(true);
+    model.setOverview(false); video.currentTime = 7.25;
+    const movie = model.movie, screen = model.screen, texture = model.screenMaterial.map;
+    for (const world of ['curvature-v1','original']) {
+      const oldGroup = model.worldGroup, oldMesh = model.chairMeshes[0];
+      let disposed = false; oldMesh.geometry.addEventListener('dispose', () => { disposed = true; });
+      model.setLayout(makeLayout(world));
+      assert.ok(disposed, 'old seat geometry must be released');
+      assert.ok(!model.group.children.includes(oldGroup), 'only one world is rendered at a time');
+      assert.equal(model.selected.id,selected.id);
+      assert.equal(model.layout.world.id,world);
+      assert.equal(model.movie,movie); assert.equal(model.screen,screen); assert.equal(model.screenMaterial.map,texture);
+      assert.equal(video.currentTime,7.25); assert.equal(players,1,'switching worlds must not restart/download the video');
+      assert.equal(model.stageGroup.visible,true); assert.equal(model.audience.visible,true);
+      const matrix = new THREE.Matrix4(); model.audience.meshes[0].getMatrixAt(model.selected.index,matrix);
+      assert.equal(matrix.determinant(),0,'the same current seat remains empty');
+      model.setHoverSeats([model.layout.byId.get('209-10-10')]);
+      assert.equal(model.hovered[0].id,'209-10-10','picking uses the replacement world');
+    }
   } finally { model?.dispose(); globalThis.document = original; }
 });

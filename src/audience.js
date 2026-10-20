@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-
-const variation = seat => {
-  const value = Math.sin(seat.section * 738.13 + seat.row * 37.71 + seat.number * 3.17) * 43758.5453;
-  return value - Math.floor(value);
-};
+import { HEAD, audienceVariation as variation, audienceStature, audienceHead } from './audience-shape.js';
 
 function transformed(geometry, position, scale, rotation = 0) {
   geometry.scale(...scale); geometry.rotateZ(rotation); geometry.translate(...position);
@@ -24,7 +20,7 @@ export class Audience extends THREE.Group {
       colors.push(color.r, color.g, color.b);
     }
     head.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    head.scale(.105, .145, .11); head.translate(0, 1.21, -.025);
+    head.scale(HEAD.x, HEAD.y, HEAD.z); head.translate(0, HEAD.height, HEAD.forward);
     const bodyParts = [
       transformed(new THREE.SphereGeometry(1, 6, 4), [0, .84, .01], [.195, .25, .13]),
       transformed(new THREE.CylinderGeometry(.058, .052, .32, 4, 1, true), [-.205, .79, -.045], [1, 1, 1], -.18),
@@ -56,11 +52,10 @@ export class Audience extends THREE.Group {
     this.meshes[1].instanceColor.needsUpdate = true;
   }
 
-  stature(seat) { return .94 + variation(seat) * .12; }
+  stature(seat) { return audienceStature(seat); }
   headCenter(seat) {
-    return new THREE.Vector3(0, 1.21 * this.stature(seat), -.025)
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), seat.yaw)
-      .add(new THREE.Vector3(seat.x, seat.y, seat.z));
+    const p = audienceHead(seat);
+    return new THREE.Vector3(p.x, p.y, p.z);
   }
   writeSeat(seat, hidden = false) {
     const object = new THREE.Object3D();
