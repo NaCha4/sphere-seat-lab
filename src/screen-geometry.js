@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import { BUILDING, radians } from './layout.js';
 
 // Spherical fit constrained by the published apex/area and a traced profile.
-// The rear trimming plane is an approximation of the irregular installed edge.
+// Page 8 of the 2023 production drawing shows a stepped panel edge. Its exact
+// panel schedule is unavailable; the step pitch below is a visual reconstruction.
 export function createScreenGeometry() {
   const c = BUILDING.screen, p = [], uv = [], edge = [];
   const normal = new THREE.Vector3(0, Math.cos(radians(c.tiltDegrees)), -Math.sin(radians(c.tiltDegrees)));
-  const signed = v => normal.dot(v.p.clone().sub(new THREE.Vector3(0, c.centerY, c.centerZ))) - c.clipOffset;
+  let panelOffset = c.clipOffset;
+  const signed = v => normal.dot(v.p.clone().sub(new THREE.Vector3(0, c.centerY, c.centerZ))) - panelOffset;
   const clip = (polygon, distance) => {
     const out = [];
     for (let i = 0; i < polygon.length; i++) {
@@ -37,9 +39,23 @@ export function createScreenGeometry() {
       if ((Math.abs(signed(a)) < 1e-6 && Math.abs(signed(b)) < 1e-6) || (Math.abs(a.p.y) < 1e-6 && Math.abs(b.p.y) < 1e-6)) edge.push(...a.p, ...b.p);
     }
   };
-  for (let i = 0; i < width; i++) for (let j = 0; j < height; j++) {
-    const a = at(i, j), b = at(i + 1, j), d = at(i, j + 1), e = at(i + 1, j + 1);
-    emit([a, b, d]); emit([b, e, d]);
+  for (let i = 0; i < width; i++) {
+    const az = (i + .5) / width * 2 * Math.PI - Math.PI;
+    // Constant per azimuth strip: clipping stays planar within each triangle,
+    // while adjacent strips end at visibly different panel heights.
+    let lo = 0, hi = polarMax;
+    panelOffset = c.clipOffset;
+    for (let n = 0; n < 30; n++) {
+      const mid = (lo + hi) / 2;
+      const value = normal.y * c.radius * Math.cos(mid) - normal.z * c.radius * Math.sin(mid) * Math.cos(az) - c.clipOffset;
+      if (value > 0) lo = mid; else hi = mid;
+    }
+    const edgeY = c.centerY + c.radius * Math.cos((lo + hi) / 2);
+    panelOffset += normal.y * (Math.round(edgeY / .35) * .35 - edgeY);
+    for (let j = 0; j < height; j++) {
+      const a = at(i, j), b = at(i + 1, j), d = at(i, j + 1), e = at(i + 1, j + 1);
+      emit([a, b, d]); emit([b, e, d]);
+    }
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));

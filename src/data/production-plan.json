@@ -1,0 +1,20 @@
+{
+  "source": "https://s3.amazonaws.com/publiceditorial.qtxasset.com/live-design/2023LightingPlots/U2_LightingPlots_v02-part-2.pdf",
+  "page": 2,
+  "imageSize": [6779, 3760],
+  "coordinateOriginPx": [3386, 611],
+  "stageWidthAnchorsPx": [[2976, 850], [3801, 850]],
+  "stageWidthMetres": 14.127,
+  "stageCenterPx": [3388.5, 1224],
+  "pixelsPerMetre": 58.398810787853,
+  "screenFrontPx": [3386, 594],
+  "frontEdgeLeftToCentrePx": [[1316, 1400], [1592, 1680], [1910, 1902], [2298, 2112], [2464, 2162], [2590, 2196], [2746, 2244], [3170, 2318], [3386, 2318]],
+  "visibleCentralRiserYpx": [2318, 2369, 2420, 2471, 2522, 2573, 2624, 2675, 2726, 2777, 2828, 2879, 2930, 2981, 3032, 3083, 3134, 3185, 3236],
+  "notes": [
+    "Manual trace of the venue model in a 2023 production working drawing, not an as-built survey.",
+    "Page 1 labels the deck width 14,127 mm. The corresponding deck edges on page 2 span 825 pixels. Feet grid provides an independent approximate scale check.",
+    "Left-hand front contour is mirrored: right side and the lower bowl appear symmetric at this drawing resolution.",
+    "The first visible permanent lower row is associated with inventory row 12. Hidden rear rows are extrapolated using the visible tread rhythm; that row association is inferred.",
+    "Section boundaries are assigned using inventory counts, with wider aisles after 103 and 107 aligned to the two clear plan gaps. Internal section splits and seat centring remain inferred."
+  ]
+}

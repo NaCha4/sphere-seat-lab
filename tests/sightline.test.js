@@ -47,8 +47,8 @@ test('baseline balcony blocks the upper screen from rear 100 seats but not front
     assert.equal(seesUpperScreen(210, 10), true);
     assert.equal(seesUpperScreen(406, 23), true);
     const ceilingRay = new THREE.Raycaster(new THREE.Vector3(0, 50, 50), new THREE.Vector3(0, 1, 0));
-    assert.ok(ceilingRay.intersectObject(model.enclosure).length > 0, 'the non-screen rear ceiling must be enclosed, not open sky');
-    assert.equal(model.enclosure.material.map, null);
+    assert.ok(ceilingRay.intersectObject(model.enclosure, true).length > 0, 'the non-screen rear ceiling must be enclosed, not open sky');
+    assert.equal(model.enclosure.getObjectByName('non-screen-roof').material.map, null);
     model.setOverview(true);
     assert.equal(model.enclosure.visible, false, 'overview must expose the interior');
     model.setOverview(false);

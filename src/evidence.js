@@ -1,4 +1,6 @@
 export const SOURCES = [
+  { name: 'U2 · 2023 production drawings', type: '제작진 공개 작업 도면 · 핵심 평면 근거', url: 'https://s3.amazonaws.com/publiceditorial.qtxasset.com/live-design/2023LightingPlots/U2_LightingPlots_v02-part-2.pdf', note: '1–2쪽의 ft 눈금·14,127mm 무대 폭으로 하부 객석을 환산. 6–8쪽의 발코니·계단형 LED 경계·검은 후방 천장을 반영. 상층 전체 치수와 준공 검증은 없음.' },
+  { name: 'Live Design · U2', type: '2023-10-05 · 도면 공개 기사', url: 'https://www.livedesignonline.com/concerts/u2', note: '조명감독 Alex Murphy가 제공한 U2 Sphere 도면의 공개 경로. 공연 제작용 자료와 고정 공연장 구조를 구분해 적용.' },
   { name: 'Ticketmaster · Eagles geometry', type: '공식 예매 데이터', url: 'https://mapsapi.tmol.io/maps/geometry/3/event/17006484FED61E34?systemId=HOST', note: '39개 구역의 숫자 행과 행별 수량을 가져옴. 일반 위치 13,830개·WC 178개. 개별 티켓 번호와 미터 좌표는 없음.' },
   { name: 'Ticketmaster · Metallica geometry', type: '독립 공연 설정 교차 확인', url: 'https://mapsapi.tmol.io/maps/geometry/3/event/17006461A5E3E208?systemId=HOST', note: '39개 구역의 모든 숫자 행·행별 수량이 Eagles와 일치. 206구역 WC 포함 여부는 다름.' },
   { name: 'Tana Helean · Sphere Quickstart', type: '전 Sphere 설계·R&D 담당자', url: 'https://tanahelean.com/works/sphere', note: '2019 설계 단계 단면·평면. 화면 원형 프로파일과 객석 높이 비율을 조건부 환산. 2023 준공도면이 아님.' },
@@ -23,5 +25,6 @@ export const SOURCES = [
 export const CONFIDENCE = [
   ['공식 수치', '외피 직경 157.28 m · 높이 111.56 m · 화면 정점 73.15 m · 화면 면적 약 14,864 m²'],
   ['공식 예매 데이터 교차 확인', '39개 구역 · 실제 숫자 행 · 행별 수량. 206: 7–16행 / 406: 4–23행. 공연 2종의 일반 좌석 데이터 일치'],
-  ['추정이며 준공 검증되지 않음', '2019 단면을 환산한 화면·객석 높이 · 층별 곡률 · 행 깊이·단높이 · 의자 폭 · 발코니·천장 · 모든 좌석의 미터 좌표'],
+  ['2023 작업 도면 반영', '하부 객석의 꺾이는 평면·행 간격, 두 주요 통로, U2 무대의 평면 크기. 발코니 전면·검은 후방 천장·계단형 LED 끝단의 형태 참고'],
+  ['추정이며 준공 검증되지 않음', '가려진 하부 뒷열 · 개별 좌석의 배분 · 상층 평면과 전체 높이 · 단높이 · 의자 폭 · 발코니 두께 · LED 끝단의 정확한 패널 치수'],
 ];
