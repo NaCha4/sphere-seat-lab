@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING, TIERS, radians } from './layout.js';
+import { createAuroraMaterial } from './screen-content.js';
 
 function sector(inner, outer, start, end, top, bottom = top - .2, segments = 10) {
   const p = [], indices = [];
@@ -66,11 +67,6 @@ function fbm(x, y) {
 }
 
 export function screenTexture(mode = 'earth') {
-  if (mode === 'chiikawa') {
-    const texture = new THREE.TextureLoader().load(new URL('./assets/chiikawa-screen.webp', import.meta.url).href);
-    texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
-    return texture;
-  }
   const canvas = document.createElement('canvas'); canvas.width = 2048; canvas.height = 1024;
   const ctx = canvas.getContext('2d');
   if (mode === 'earth') {
@@ -127,7 +123,7 @@ export function screenTexture(mode = 'earth') {
 }
 
 export class Auditorium {
-  constructor(scene, layout, { screenMode = 'earth' } = {}) {
+  constructor(scene, layout, { screenMode = 'aurora' } = {}) {
     this.scene = scene; this.layout = layout; this.group = new THREE.Group();
     this.group.name = 'Original Sphere reconstruction'; scene.add(this.group);
     this.pickables = []; this.chairMeshes = []; this.labels = new THREE.Group(); this.group.add(this.labels);
@@ -148,8 +144,11 @@ export class Auditorium {
   }
 
   createArchitecture() {
-    const concrete = new THREE.MeshStandardMaterial({ color: '#18242c', roughness: .94, side: THREE.DoubleSide });
-    const fascia = new THREE.MeshStandardMaterial({ color: '#111b23', roughness: .8, metalness: .2, side: THREE.DoubleSide });
+    const concrete = new THREE.MeshStandardMaterial({ color: '#45545e', roughness: .94, side: THREE.DoubleSide });
+    const fascia = new THREE.MeshStandardMaterial({ color: '#3b505e', roughness: .8, metalness: .2, side: THREE.DoubleSide });
+    // A subtle fill keeps the downward-facing structure readable from the
+    // lower seats; these colours are navigation aids, not as-built finishes.
+    const soffit = new THREE.MeshStandardMaterial({ color: '#8f7d67', emissive: '#6d5a45', emissiveIntensity: .18, roughness: .94, side: THREE.DoubleSide });
     const beamMatrices = [], lightMatrices = [];
     const beam = (from, to, width, target = beamMatrices) => {
       const a = new THREE.Vector3(...from), b = new THREE.Vector3(...to);
@@ -180,7 +179,8 @@ export class Auditorium {
       // The pronounced first balcony overhang is part of the baseline, not an improvement.
       if (t.id === 200 || t.id === 300) {
         const bottom = t.id === 200 ? t.elevation - 1.8 : t.elevation - 1.6;
-        const under = new THREE.Mesh(sector(first.radius - 1.8, last.radius + 2.2, s.start - radians(.9), s.end + radians(.9), t.elevation - .18, bottom, 18), fascia);
+        const under = new THREE.Mesh(sector(first.radius - 1.8, last.radius + 2.2, s.start - radians(.9), s.end + radians(.9), t.elevation - .18, bottom, 18), soffit);
+        under.name = 'warm-balcony-underside';
         this.group.add(under);
         const railRadius = first.radius - 1.7;
         for (let j = 0; j < 18; j++) {
@@ -256,8 +256,7 @@ export class Auditorium {
   }
 
   createScreen(mode) {
-    this.texture = screenTexture(mode);
-    this.screenMaterial = new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide, transparent: true, toneMapped: false });
+    this.screenMaterial = this.makeScreenMaterial(mode);
     this.screen = new THREE.Mesh(screenGeometry(), this.screenMaterial); this.screen.name = 'interior-LED';
     this.group.add(this.screen);
     const position = this.screen.geometry.attributes.position, edge = [];
@@ -272,14 +271,20 @@ export class Auditorium {
   }
 
   createEnclosure() {
-    // Non-emissive enclosure behind the LED. It is a visual boundary, not a
+    // Matte enclosure behind the LED, with only a small visibility fill. It is a visual boundary, not a
     // measured model of the hidden roof trusses, catwalks, or acoustic lining.
     const radius = BUILDING.diameter / 2 - .25;
     const geometry = new THREE.SphereGeometry(radius, 64, 40, 0, Math.PI * 2, 0, Math.acos(-BUILDING.centerY / radius));
-    this.enclosure = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#101214', roughness: 1, metalness: 0, side: THREE.BackSide }));
+    this.enclosure = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#343c43', emissive: '#11161a', emissiveIntensity: .25, roughness: 1, metalness: 0, side: THREE.BackSide }));
     this.enclosure.name = 'dark-interior-enclosure';
     this.enclosure.position.set(0, BUILDING.centerY, -13);
     this.group.add(this.enclosure);
+  }
+
+  makeScreenMaterial(mode) {
+    this.texture = mode === 'aurora' ? null : screenTexture(mode);
+    return mode === 'aurora' ? createAuroraMaterial(BUILDING.screen)
+      : new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide, transparent: true, toneMapped: false });
   }
 
   createExterior() {
@@ -322,10 +327,16 @@ export class Auditorium {
     this.hovered = next;
   }
   setScreen(mode) {
-    this.texture?.dispose(); this.texture = screenTexture(mode); this.screenMaterial.map = this.texture; this.screenMaterial.needsUpdate = true;
+    const opacity = this.screenMaterial.opacity, depthWrite = this.screenMaterial.depthWrite;
+    this.texture?.dispose(); this.screenMaterial.dispose();
+    this.screenMaterial = this.makeScreenMaterial(mode);
+    this.screenMaterial.opacity = opacity; this.screenMaterial.depthWrite = depthWrite;
+    if (this.screenMaterial.uniforms?.uOpacity) this.screenMaterial.uniforms.uOpacity.value = opacity;
+    this.screen.material = this.screenMaterial;
   }
   setOverview(on, labels = true) {
     this.screenMaterial.opacity = on ? .16 : 1; this.screenMaterial.depthWrite = !on;
+    if (this.screenMaterial.uniforms?.uOpacity) this.screenMaterial.uniforms.uOpacity.value = this.screenMaterial.opacity;
     this.exterior.visible = on; this.labels.visible = on || labels;
     this.enclosure.visible = !on;
   }
