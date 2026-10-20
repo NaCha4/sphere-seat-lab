@@ -131,7 +131,7 @@ export class Auditorium {
     this.scene = scene; this.layout = layout; this.group = new THREE.Group();
     this.group.name = 'Original Sphere reconstruction'; scene.add(this.group);
     this.pickables = []; this.chairMeshes = []; this.labels = new THREE.Group(); this.group.add(this.labels);
-    this.createArchitecture(); this.createSeats(); this.createScreen(screenMode); this.createExterior();
+    this.createArchitecture(); this.createSeats(); this.createScreen(screenMode); this.createEnclosure(); this.createExterior();
     const ring = new THREE.Mesh(new THREE.RingGeometry(.42, .49, 32), new THREE.MeshBasicMaterial({ color: '#eac78d', side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; this.marker = ring; this.group.add(ring);
     this.hovered = [];
@@ -260,6 +260,26 @@ export class Auditorium {
     this.screenMaterial = new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide, transparent: true, toneMapped: false });
     this.screen = new THREE.Mesh(screenGeometry(), this.screenMaterial); this.screen.name = 'interior-LED';
     this.group.add(this.screen);
+    const position = this.screen.geometry.attributes.position, edge = [];
+    const center = new THREE.Vector3(0, BUILDING.screen.centerY, BUILDING.screen.centerZ);
+    for (let x = 0; x < 180; x++) {
+      const point = new THREE.Vector3().fromBufferAttribute(position, x * 73 + 72);
+      edge.push(point.sub(center).multiplyScalar(.9995).add(center));
+    }
+    this.screenEdge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: '#a7b9ba', transparent: true, opacity: .48, depthWrite: false }));
+    this.screenEdge.name = 'LED-boundary'; this.screenEdge.renderOrder = 1;
+    this.group.add(this.screenEdge);
+  }
+
+  createEnclosure() {
+    // Non-emissive enclosure behind the LED. It is a visual boundary, not a
+    // measured model of the hidden roof trusses, catwalks, or acoustic lining.
+    const radius = BUILDING.diameter / 2 - .25;
+    const geometry = new THREE.SphereGeometry(radius, 64, 40, 0, Math.PI * 2, 0, Math.acos(-BUILDING.centerY / radius));
+    this.enclosure = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#101214', roughness: 1, metalness: 0, side: THREE.BackSide }));
+    this.enclosure.name = 'dark-interior-enclosure';
+    this.enclosure.position.set(0, BUILDING.centerY, -13);
+    this.group.add(this.enclosure);
   }
 
   createExterior() {
@@ -307,6 +327,7 @@ export class Auditorium {
   setOverview(on, labels = true) {
     this.screenMaterial.opacity = on ? .16 : 1; this.screenMaterial.depthWrite = !on;
     this.exterior.visible = on; this.labels.visible = on || labels;
+    this.enclosure.visible = !on;
   }
   dispose() {
     this.scene.remove(this.group);

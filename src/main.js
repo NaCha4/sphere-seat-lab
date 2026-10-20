@@ -44,7 +44,7 @@ app.innerHTML = `
     <div class="preset-heading"><h3>다른 시야 살펴보기</h3><span>QUICK VIEWS</span></div>
     <div class="presets">${PRESETS.map((p, i) => `<button data-preset="${i}"><span>${p.label}</span><small>${p.section} · ${p.row}행</small></button>`).join('')}</div>
     <div class="section-divider"></div>
-    <label class="field">스크린 콘텐츠<select id="content"><option value="chiikawa">치이카와 · 화면 전체 보기</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 구조 보기</option></select></label>
+    <label class="field">스크린 콘텐츠<select id="content"><option value="chiikawa">치이카와 · 화면 전체 보기</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 스크린 콘텐츠</option></select></label>
     <div class="display-options"><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="cinema">100층 앞쪽 가변 객석</label></div>
     <p class="sidebar-note">치이카와 화면은 AI로 생성한 팬 일러스트입니다.<br>실제 공연 영상은 포함하지 않습니다.</p>
   </aside>
@@ -65,7 +65,7 @@ const query = new URLSearchParams(location.search);
 let currentSeat = resolveSeat(layout, { section: query.get('section') || 206, row: query.get('row') || 10, number: query.get('seat') });
 let view = 'seat', contentMode = 'chiikawa', labelsVisible = false;
 let renderer, model, orbit;
-const scene = new THREE.Scene(); scene.background = new THREE.Color('#081019');
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#030405');
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, .05, 550);
 const rig = new THREE.Group(); rig.add(camera); scene.add(rig);
 const hemisphere = new THREE.HemisphereLight('#afc6ed', '#101d27', 2.2); scene.add(hemisphere);

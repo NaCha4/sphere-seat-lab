@@ -25,6 +25,7 @@ The exterior, supporting roof dome and suspended interior screen are **different
 - Row depth, rise and seat pitch: inferred from section drawings, photos and proportions. Seat pitch .63 m. Seated eye height1.18 m above model tread.
 - Stage: generic25×13 m rectangle, top1.2 m. Event-specific U2, Metallica or other stages are not treated as permanent architecture.
 - Suite bands and railings: approximate visible structure. The pronounced first overhang is retained because it directly affects 100-level upper-screen visibility.
+- The area outside the LED is shown as a dark, non-emissive enclosure, with a subtle line at the media-surface boundary. This avoids implying an open sky. The enclosure follows the exterior envelope for visual closure only; it is not a reconstruction of the hidden roof trusses or an assertion of the exact LED edge coordinates. It is hidden in overview mode.
 - Individual seat numbering is generated monotonically within model rows. It must not be used to buy real tickets.
 - An AI-generated Chiikawa fan illustration fills the screen by default. The procedural Earth/horizon, star field and UV grid remain optional test content. These are not actual Sphere film frames. The UV grid is not a calibrated equal-angle reticle. See ASSET_NOTES.md for the generated asset and prompt.
 - Model-derived distances/yaw differences describe this reconstruction only. VR optics and field of view are headset-dependent.
