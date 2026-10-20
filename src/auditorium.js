@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING, TIERS, radians, rowGeometry, rowPoint, rowPath, sectionAngles } from './layout.js';
+import { bankBounds, bankPoint, createBankGeometry, createAisleGeometry, mergeBowlSurfaces } from './bowl-geometry.js';
 import { createAuroraMaterial } from './screen-content.js';
 import { Audience } from './audience.js';
 import { createScreenGeometry } from './screen-geometry.js';
@@ -29,6 +29,7 @@ function ribbon(tier, innerRow, outerRow, start, end, top, bottom) {
   }
   const k = (points.length - 1) * 4;
   indices.push(0,1,2, 1,3,2, k,k+2,k+1, k+1,k+2,k+3);
+  for (let i = 0; i < indices.length; i += 3) [indices[i + 1], indices[i + 2]] = [indices[i + 2], indices[i + 1]];
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
   g.setIndex(indices); g.computeVertexNormals(); return g;
 }
@@ -123,11 +124,11 @@ export class Auditorium {
   }
 
   createArchitecture() {
-    const concrete = new THREE.MeshStandardMaterial({ color: '#45545e', roughness: .94, side: THREE.DoubleSide });
-    const fascia = new THREE.MeshStandardMaterial({ color: '#3b505e', roughness: .8, metalness: .2, side: THREE.DoubleSide });
+    const concrete = new THREE.MeshStandardMaterial({ color: '#45545e', roughness: .94, flatShading: true });
+    const fascia = new THREE.MeshStandardMaterial({ color: '#3b505e', roughness: .8, metalness: .2, side: THREE.DoubleSide, flatShading: true });
     // A subtle fill keeps the downward-facing structure readable from the
     // lower seats; these colours are navigation aids, not as-built finishes.
-    const soffit = new THREE.MeshStandardMaterial({ color: '#8f7d67', emissive: '#6d5a45', emissiveIntensity: .18, roughness: .94, side: THREE.DoubleSide });
+    const soffit = new THREE.MeshStandardMaterial({ color: '#8f7d67', emissive: '#6d5a45', emissiveIntensity: .18, roughness: .94, flatShading: true });
     const beamMatrices = [], lightMatrices = [];
     const beam = (from, to, width, target = beamMatrices) => {
       const a = new THREE.Vector3(...from), b = new THREE.Vector3(...to);
@@ -135,12 +136,22 @@ export class Auditorium {
       o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
       o.scale.set(width, a.distanceTo(b), width); o.updateMatrix(); target.push(o.matrix.clone());
     };
-    const tiers = new Map(TIERS.map(t => [t.id, []]));
-    for (const s of this.layout.sections) {
-      for (const [row, list] of s.rows) {
-        const seat = list[0], t = s.tier;
-        tiers.get(t.id).push(ribbon(t, row - .5, row + .5, seat.rowStart, seat.rowEnd, seat.floorY, seat.floorY - t.rise - .15));
+    this.bankShells = this.layout.sections.map(section => ({ section, geometry: createBankGeometry(section) }));
+    this.aisleShells = [];
+    for (const tier of TIERS) {
+      const sections = this.layout.sections.filter(s => s.tier.id === tier.id);
+      for (let i = 1; i < sections.length; i++) {
+        const left = sections[i - 1], right = sections[i];
+        this.aisleShells.push({ left, right, geometry: createAisleGeometry(left, right) });
       }
+    }
+    const surfaces = mergeBowlSurfaces([...this.bankShells, ...this.aisleShells].map(s => s.geometry));
+    this.bowlMeshes = surfaces.map((geometry, i) => {
+      const mesh = new THREE.Mesh(geometry, [concrete, soffit, fascia][i]);
+      mesh.name = ['closed-bowl-decks', 'closed-bowl-soffits', 'closed-bowl-side-walls'][i];
+      this.group.add(mesh); return mesh;
+    });
+    for (const s of this.layout.sections) {
       const t = s.tier, first = s.rows.get(s.range.first)[0], last = s.rows.get(s.range.last)[0];
       const label = this.makeLabel(String(s.id), t.color);
       const labelPoint = rowPoint(t, s.range.first + 1.5, s.center);
@@ -149,45 +160,37 @@ export class Auditorium {
       for (const angle of [s.start, s.end]) {
         if (t.id === 100 && ![101,103,104,107,108,110].includes(s.id)) continue;
         if (t.id === 100 && (([101,104,108].includes(s.id) && angle !== s.start) || ([103,107,110].includes(s.id) && angle !== s.end))) continue;
-        const { x: x0, z: z0 } = rowPoint(t, s.range.first, angle);
-        const rearAngle = sectionAngles(t, s.id, s.range.last)[angle === s.start ? 'start' : 'end'];
-        const { x: x1, z: z1 } = rowPoint(t, s.range.last, rearAngle);
-        beam([x0, first.floorY + .95, z0], [x1, last.floorY + .95, z1], .035);
-        for (let j = 0; j <= 5; j++) {
-          const f = j / 5, x = THREE.MathUtils.lerp(x0, x1, f), z = THREE.MathUtils.lerp(z0, z1, f), y = THREE.MathUtils.lerp(first.floorY, last.floorY, f);
-          beam([x, y, z], [x, y + .95, z], .035);
+        const side = angle === s.start ? 'start' : 'end';
+        let previous;
+        for (let row = s.range.first; row <= s.range.last; row++) {
+          const p = t.id === 100 ? bankPoint(s,row,side === 'start' ? 0 : 1) : rowPoint(t,row,sectionAngles(t,s.id,row)[side]);
+          const y = rowGeometry(t,row).floorY, top = [p.x,y+.95,p.z];
+          if (previous) {
+            beam(previous,top,.035);
+            beam([previous[0],previous[1]-.915,previous[2]],[p.x,y+.035,p.z],.026,lightMatrices);
+          }
+          // Embed each post slightly into the tread rather than leave a
+          // floating foot where the inclined rail crosses a staircase riser.
+          if ((row-s.range.first)%2===0 || row===s.range.last) beam([p.x,y-.12,p.z],top,.035);
+          previous = top;
         }
-        beam([x0, first.floorY + .035, z0], [x1, last.floorY + .035, z1], .026, lightMatrices);
       }
       // The pronounced first balcony overhang is part of the baseline, not an improvement.
       if (t.id >= 200) {
-        const ceiling = t.id === 200 ? [first.floorY - 1.25, first.floorY - 1.25] : [first.floorY - 1.3, last.floorY - 1.3];
-        const under = new THREE.Mesh(ribbon(t, s.range.first - .5, s.range.last + .5, s.start, s.end, ceiling, ceiling.map(y => y - .16)), soffit);
-        under.name = 'warm-balcony-underside';
-        this.group.add(under);
-        const face = new THREE.Mesh(ribbon(t, s.range.first - .65, s.range.first - .45, s.start, s.end, first.floorY + .05, first.floorY - (t.id === 200 ? 3.1 : 1.65)), fascia);
+        const frontBounds = bankBounds(s, s.range.first - .5);
+        const face = new THREE.Mesh(ribbon(t, s.range.first - .65, s.range.first - .45, frontBounds.start, frontBounds.end, first.floorY + .05, first.floorY - (t.id === 200 ? 3.1 : 1.65)), fascia);
         face.name = 'vertical-balcony-fascia'; this.group.add(face);
-        const rail = rowPath(t, s.range.first - .5, s.start, s.end);
+        const rail = rowPath(t, s.range.first - .5, frontBounds.start, frontBounds.end);
         for (let j = 1; j < rail.length; j++) {
           const a = rail[j-1], b = rail[j];
           beam([a.x,first.floorY+1.02,a.z], [b.x,first.floorY+1.02,b.z], .045);
-          beam([a.x,first.floorY,a.z], [a.x,first.floorY+1.02,a.z], .035);
+          const posts = Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/1.8);
+          for (let i=0;i<posts;i++) {
+            const x = THREE.MathUtils.lerp(a.x,b.x,i/posts), z = THREE.MathUtils.lerp(a.z,b.z,i/posts);
+            beam([x,first.floorY-.08,z],[x,first.floorY+1.02,z],.035);
+          }
         }
       }
-    }
-    // The two wide lower-bowl aisles are visible in the calibrated plan.
-    const main = this.layout.sections.filter(s => s.tier.id === 100);
-    for (const index of [2, 6]) {
-      const left = main[index], right = main[index + 1], t = left.tier;
-      for (let row = 11.5; row < 37.5; row += .5) {
-        const y = rowGeometry(t, row + .25).floorY;
-        const a = sectionAngles(t, left.id, row).end, b = sectionAngles(t, right.id, row).start;
-        tiers.get(100).push(ribbon(t, row, row + .5, a, b, y, y - .2));
-      }
-    }
-    for (const [, geometries] of tiers) {
-      const merged = mergeGeometries(geometries, false);
-      this.group.add(new THREE.Mesh(merged, concrete)); geometries.forEach(g => g.dispose());
     }
     const addInstances = (matrices, material) => {
       const mesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 5), material, matrices.length);
@@ -283,9 +286,14 @@ export class Auditorium {
     roof.setAttribute('position', new THREE.Float32BufferAttribute([-66,77,15, 66,77,15, -66,66,65, 66,66,65],3));
     roof.setIndex([0,2,1,1,2,3]); roof.computeVertexNormals();
     const roofMesh = new THREE.Mesh(roof, material); roofMesh.name = 'non-screen-roof'; this.enclosure.add(roofMesh);
-    const rear = new THREE.Mesh(new THREE.BoxGeometry(132,66,.4), material); rear.position.set(0,33,65); this.enclosure.add(rear);
+    const rear = new THREE.Mesh(new THREE.BoxGeometry(132.4,66.5,.4), material); rear.position.set(0,32.75,65); rear.name = 'sealed-rear-wall'; this.enclosure.add(rear);
+    const sideShape = new THREE.Shape();
+    sideShape.moveTo(-45,-.5); sideShape.lineTo(65,-.5); sideShape.lineTo(65,66);
+    sideShape.lineTo(15,77); sideShape.lineTo(-45,77); sideShape.closePath();
+    const sideGeometry = new THREE.ExtrudeGeometry(sideShape, { depth: .4, bevelEnabled: false });
+    sideGeometry.rotateY(-Math.PI / 2);
     for (const x of [-66,66]) {
-      const side = new THREE.Mesh(new THREE.BoxGeometry(.4,70,110), material); side.position.set(x,35,10); this.enclosure.add(side);
+      const side = new THREE.Mesh(sideGeometry, material); side.position.x = x + .2; side.name = 'sealed-roof-side-wall'; this.enclosure.add(side);
     }
     for (let z = 20; z <= 64; z += 8) {
       const beam = new THREE.Mesh(new THREE.BoxGeometry(132,.48,.4), beamMaterial);
@@ -360,7 +368,7 @@ export class Auditorium {
   }
   dispose() {
     this.scene.remove(this.group);
-    const geometries = new Set(), materials = new Set(), textures = new Set();
+    const geometries = new Set([...this.bankShells, ...this.aisleShells].map(s => s.geometry)), materials = new Set(), textures = new Set();
     this.group.traverse(o => {
       if (o.geometry) geometries.add(o.geometry);
       if (o.isInstancedMesh) o.dispose();

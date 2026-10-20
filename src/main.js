@@ -27,7 +27,7 @@ app.innerHTML = `
   <div id="veil"></div>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Sphere Seat Lab 홈">${icon('sphere', 31)}<span>SPHERE<span class="brand-sub">SEAT LAB</span></span></a>
-    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 03</span><h1>좌석에서 만나는 스피어</h1></div>
+    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 04</span><h1>좌석에서 만나는 스피어</h1></div>
     <div class="header-actions"><button class="icon-button" id="research" aria-label="모델 근거와 출처">${icon('info')}</button><button class="vr-button" id="vr">${icon('vr', 20)}<span>VR 시작</span></button></div>
   </header>
   <aside class="sidebar" aria-label="좌석과 보기 설정">
@@ -49,14 +49,14 @@ app.innerHTML = `
     <p class="sidebar-note">오로라는 구면 좌표에 맞춰 생성한 화면입니다.<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
   </aside>
   <main class="scene-ui">
-    <div class="scene-caption"><span class="tag">RESEARCH 03</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
+    <div class="scene-caption"><span class="tag">RESEARCH 04</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
     <div class="scene-tools"><button id="reset" class="tool-button" title="시선 초기화">${icon('reset')}<span>시선 초기화</span></button><button id="screenshot" class="icon-button" title="현재 화면 이미지 저장" aria-label="현재 화면 이미지 저장">${icon('camera')}</button><button id="share" class="icon-button" title="현재 좌석 링크 복사" aria-label="현재 좌석 링크 복사">${icon('link')}</button></div>
     <div class="seat-card"><div class="seat-card-main"><span class="eyebrow" id="tier-name">TERRACE / 200 LEVEL</span><div><strong id="selected-section">206</strong><span id="selected-position">10행 · 13번</span></div><span class="seat-description" id="seat-description">중앙에서 무대와 화면을 함께 확인하세요.</span></div><div class="seat-stats"><div><span>전방 기준점까지</span><strong id="distance">—</strong></div><div><span>모델상 눈높이</span><strong id="height">—</strong></div><div><span>기준점 방향 차이</span><strong id="yaw">—</strong></div></div><div class="metrics-note">거리·각도는 추정 좌표의 계산값이며 실측값이 아닙니다.</div></div>
     <div class="bottom-line"><span class="interaction-hint" id="hint">마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화</span><button id="model-info">공개 자료 기반 재구성 ${icon('info', 13)}</button></div>
   </main>
   <button class="mobile-panel-button" id="mobile-panel">${icon('eye', 16)}좌석 선택</button>
   <div id="toast" role="status" aria-live="polite"></div>
-  <dialog id="info-dialog"><button class="dialog-close icon-button" aria-label="닫기">${icon('close')}</button><div class="dialog-kicker">ABOUT THIS RECONSTRUCTION</div><h2>공식 데이터와 추정 구조</h2><p class="dialog-intro">공식 예매 데이터의 39개 구역·숫자 행·행별 좌석 수를 적용했습니다. 13,830개 일반 좌석 위치를 표시하며, 별도 WC 178개 위치와 가변 앞좌석은 좌표 미확보로 생성하지 않습니다. 전체 공식 수용 인원과는 집계 범위가 다릅니다.</p><div class="evidence-levels">${CONFIDENCE.map(([title, body], i) => `<div><span class="level-number">0${i + 1}</span><section><h3>${title}</h3><p>${body}</p></section></div>`).join('')}</div><div class="important-note">2023 U2 작업 도면의 축척으로 하부 객석 평면을 다시 맞췄습니다. 두 주요 통로와 꺾이는 열, 발코니 전면, 계단형 LED 끝단과 검은 후방 천장을 반영했습니다. 이 자료는 준공 CAD가 아니며 숨겨진 뒷열·상층 평면·높이·패널 치수는 추정입니다. 행 내 번호는 실제 티켓 번호가 아닙니다. 이 모델만으로 실제 시야·가림의 정도를 입증할 수 없습니다. U2 무대는 별도로 켤 수 있으며 높이는 추정입니다.</div><h3 class="source-heading">조사 출처 <span>2026.10.20 확인</span></h3><div class="sources">${SOURCES.map((s, i) => `<a href="${s.url}" target="_blank" rel="noopener noreferrer"><span class="source-number">${String(i + 1).padStart(2, '0')}</span><div><small>${s.type}</small><strong>${s.name} ↗</strong><p>${s.note}</p></div></a>`).join('')}</div><p class="educational-note">Independent educational reconstruction. Not affiliated with or endorsed by Sphere Entertainment. 실제 공연 영상과 원본 도면 이미지는 이 사이트에 재배포하지 않습니다.</p></dialog>
+  <dialog id="info-dialog"><button class="dialog-close icon-button" aria-label="닫기">${icon('close')}</button><div class="dialog-kicker">ABOUT THIS RECONSTRUCTION</div><h2>공식 데이터와 추정 구조</h2><p class="dialog-intro">공식 예매 데이터의 39개 구역·숫자 행·행별 좌석 수를 적용했습니다. 13,830개 일반 좌석 위치를 표시하며, 별도 WC 178개 위치와 가변 앞좌석은 좌표 미확보로 생성하지 않습니다. 전체 공식 수용 인원과는 집계 범위가 다릅니다.</p><div class="evidence-levels">${CONFIDENCE.map(([title, body], i) => `<div><span class="level-number">0${i + 1}</span><section><h3>${title}</h3><p>${body}</p></section></div>`).join('')}</div><div class="important-note">2023 U2 작업 도면의 축척으로 하부 객석 평면을 다시 맞췄습니다. 두 주요 통로와 꺾이는 열, 발코니 전면, 계단형 LED 끝단과 검은 후방 천장을 반영했습니다. 이 자료는 준공 CAD가 아니며 숨겨진 뒷열·상층 평면·높이·패널 치수는 추정입니다. 300번대 높이는 하층 관객과의 간섭을 없애기 위해 기존 추정에서 1.5m 보정했습니다. 행 내 번호는 실제 티켓 번호가 아닙니다. 이 모델만으로 실제 시야·가림의 정도를 입증할 수 없습니다. U2 무대는 별도로 켤 수 있으며 높이는 추정입니다.</div><h3 class="source-heading">조사 출처 <span>2026.10.20 확인</span></h3><div class="sources">${SOURCES.map((s, i) => `<a href="${s.url}" target="_blank" rel="noopener noreferrer"><span class="source-number">${String(i + 1).padStart(2, '0')}</span><div><small>${s.type}</small><strong>${s.name} ↗</strong><p>${s.note}</p></div></a>`).join('')}</div><p class="educational-note">Independent educational reconstruction. Not affiliated with or endorsed by Sphere Entertainment. 실제 공연 영상과 원본 도면 이미지는 이 사이트에 재배포하지 않습니다.</p></dialog>
 `;
 
 const $ = id => document.getElementById(id);
@@ -376,7 +376,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, audienceEnabled, modelRevision: 'research-03', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, audienceEnabled, modelRevision: 'research-04', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
 }
 
 $('section').addEventListener('change', () => setSeat(resolveSeat(layout, { section: $('section').value, row: currentSeat.row })));

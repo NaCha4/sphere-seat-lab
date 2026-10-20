@@ -17,7 +17,9 @@ export const BUILDING = Object.freeze({
 export const TIERS = Object.freeze([
   { id: 100, name: 'Main', label: '메인', first: 101, last: 110, firstRow: 12, maxRows: 37, referenceRow: 37, radius: 69, rearZ: -5, elevation: 6.73, tread: LOWER_TREAD, rise: .25, color: '#789ca7', access: 'Level 2' },
   { id: 200, name: 'Terrace', label: '테라스', first: 201, last: 211, firstRow: 1, maxRows: 21, referenceRow: 21, radius: 80, rearZ: 5.84, elevation: 21.84, tread: .90, rise: .48, color: '#a5c6bd', access: 'Level 4' },
-  { id: 300, name: 'Lower Gallery', label: '로어 갤러리', first: 301, last: 311, firstRow: 1, maxRows: 20, referenceRow: 20, radius: 106, rearZ: 19.92, elevation: 34.48, tread: .90, rise: .60, color: '#aab6d3', access: 'Level 6' },
+  // The old estimated height put 202/210 rear viewers inside this slab.
+  // A 1.5 m clearance correction stays an estimate, not an as-built dimension.
+  { id: 300, name: 'Lower Gallery', label: '로어 갤러리', first: 301, last: 311, firstRow: 1, maxRows: 20, referenceRow: 20, radius: 106, rearZ: 19.92, elevation: 35.98, tread: .90, rise: .60, color: '#aab6d3', access: 'Level 6' },
   { id: 400, name: 'Upper Gallery', label: '어퍼 갤러리', first: 403, last: 409, firstRow: 1, maxRows: 25, referenceRow: 25, radius: 126, rearZ: 45.33, elevation: 50.97, tread: .90, rise: .64, color: '#ccada2', access: 'Level 6 / 7' },
 ].map(t => Object.freeze({ ...t, centerZ: t.rearZ - t.radius })));
 
@@ -52,7 +54,11 @@ export function sectionAngles(tier, section, row = 12) {
     return { start, end, center: (start + end) / 2 };
   }
   const { start, end } = plan.sections[section];
-  return { start: radians(start), end: radians(end), center: radians((start + end) / 2) };
+  // Adjacent schematic polygons overlap slightly. Use one shared boundary so
+  // physical decks/aisles never overlap or leave an accidental sliver.
+  const a = section > tier.first ? (start + plan.sections[section - 1].end) / 2 : start;
+  const b = section < tier.last ? (end + plan.sections[section + 1].start) / 2 : end;
+  return { start: radians(a), end: radians(b), center: radians((a + b) / 2) };
 }
 
 // Shared by the actual meshes, seat map, labels and chair placement. A traced
