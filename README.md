@@ -2,6 +2,12 @@
 
 공개 자료를 바탕으로 재구성한 Las Vegas Sphere의 좌석별 관람 시야를 살펴보는 수업용 Three.js / WebXR 사이트입니다.
 
+- 웹 체험: <https://nacha4.github.io/sphere-seat-lab/>
+- 공개 웹 소스: <https://github.com/NaCha4/sphere-seat-lab>
+- 배포 브랜치: `codex/sphere-baseline`, 배포 폴더: `/docs`
+
+수업 자료를 담은 원래 비공개 저장소와 공개 웹 저장소는 별도 이력을 사용합니다. 공개 저장소에는 이 웹 프로젝트 파일만 포함합니다.
+
 ## 실행
 
 ```sh
