@@ -144,13 +144,13 @@ export class Auditorium {
     for (const s of this.layout.sections) {
       for (const [row, list] of s.rows) {
         const seat = list[0], t = s.tier;
-        tiers.get(t.id).push(sector(seat.radius - t.tread / 2, seat.radius + t.tread / 2, s.start - radians(.9), s.end + radians(.9), seat.floorY, seat.floorY - t.rise - .15, 10, t.centerZ));
+        tiers.get(t.id).push(sector(seat.radius - t.tread / 2, seat.radius + t.tread / 2, s.start, s.end, seat.floorY, seat.floorY - t.rise - .15, 10, t.centerZ));
       }
       const t = s.tier, first = s.rows.get(s.range.first)[0], last = s.rows.get(s.range.last)[0];
       const label = this.makeLabel(String(s.id), t.color);
       label.position.set(Math.sin(s.center) * (first.radius + 1.5), first.floorY + 2, t.centerZ + Math.cos(s.center) * (first.radius + 1.5));
       label.scale.set(2.4, 1.2, 1); this.labels.add(label);
-      for (const angle of [s.start - radians(.7), s.end + radians(.7)]) {
+      for (const angle of [s.start, s.end]) {
         const x0 = Math.sin(angle) * first.radius, z0 = t.centerZ + Math.cos(angle) * first.radius;
         const x1 = Math.sin(angle) * last.radius, z1 = t.centerZ + Math.cos(angle) * last.radius;
         beam([x0, first.floorY + .95, z0], [x1, last.floorY + .95, z1], .035);
@@ -245,7 +245,10 @@ export class Auditorium {
       mesh.userData.baseColors = def.fabric ? baseColors : new Map(TIERS.map(t => [t.id, new THREE.Color('#9aa8b3')]));
       mesh.name = partIndex === 0 ? 'selectable-seats' : 'chair-detail';
       for (const s of this.layout.seats) {
-        o.position.set(s.x, s.y, s.z); o.rotation.set(0, s.yaw, 0); o.updateMatrix();
+        o.position.set(s.x, s.y, s.z); o.rotation.set(0, s.yaw, 0);
+        // Standard width options are visual approximations, not installed-seat IDs.
+        const width = s.pitch >= .579 ? .58 : s.pitch >= .555 ? .555 : .53;
+        o.scale.set(width / .58, 1, 1); o.updateMatrix();
         part.position.fromArray(def.position); part.rotation.set(def.tilt || 0, 0, 0); part.updateMatrix();
         mesh.setMatrixAt(s.index, o.matrix.clone().multiply(part.matrix));
         mesh.setColorAt(s.index, def.fabric ? baseColors.get(s.tier) : new THREE.Color('#9aa8b3'));

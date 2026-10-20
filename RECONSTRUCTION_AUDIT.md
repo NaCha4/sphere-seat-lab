@@ -51,7 +51,7 @@ LED는 이 원형 프로파일을 바닥에서 자르고 후방을 약 42° 기�
 
 [Irwin](https://www.irwinseating.com/define-design)은 Sphere에 쓰인 제품군을 Luxx와 연결한다. [Bluecube Luxx 사양서](https://www.bluecubeseating.com/wp-content/uploads/2020/05/luxx-specification-2020.pdf)의 14–15쪽 및 [Irwin Luxx](https://www.irwinseating.com/luxx)를 참고해 레일, 지주, 접이식 좌판, 측면 패널, 팔걸이, 컵홀더를 변경했다.
 
-좌판 위 높이 450mm와 폭 옵션을 참고했으나 Sphere에 발주된 정확한 옵션은 미확보다. 모델의 580mm 간격·등받이 약 12°는 선택값이다. 2019 가이드 본문 12°와 그림 12.5°도 서로 차이가 있다. 관객 신장 분포와 눈높이 1.18m는 시뮬레이션 가정이다. 인체 간섭은 실제 관객 실험 결과가 아니다.
+좌판 위 높이 450mm와 폭 옵션을 참고했으나 Sphere에 발주된 정확한 옵션은 미확보다. 목표 간격은 580mm이며 좁은 행의 의자 형상은 530/555mm 폭 옵션으로 축소한다. 간격·폭·등받이 약 12°는 선택값이다. 2019 가이드 본문 12°와 그림 12.5°도 서로 차이가 있다. 관객 신장 분포와 눈높이 1.18m는 시뮬레이션 가정이다. 인체 간섭은 실제 관객 실험 결과가 아니다.
 
 ## 5. 찾았으나 가져오지 못한 것
 
@@ -60,6 +60,8 @@ LED는 이 원형 프로파일을 바닥에서 자르고 후방을 약 42° 기�
 - Clark County의 UC-17-1096 / WS-18-0218 및 [SEC 공개 계약](https://www.sec.gov/Archives/edgar/data/1636519/000163651918000010/tmsgcexhibit10600630201810k.htm): 승인 이력 확인. 공개 계약에서 도면 목록은 생략돼 있음.
 - 3DDigitalVenue 연동 경로는 발견했으나 접근 설정이 403 응답. 인증·접근 제한을 우회하지 않았으며 해당 파노라마나 좌표를 검증했다고 주장하지 않는다.
 - 실제 관객 사진의 구역/행 출처는 네 층 모두 발견했지만 일부 이미지 원본 접근은 403. 렌즈·카메라 높이를 보정한 사진 대조는 완료하지 못했다.
+
+수동 대조를 위해 찾은 관객 사진의 위치 메타데이터: [106/33/7](https://aviewfrommyseat.com/venue/the%2Bsphere%2C%2Bvegas/106/33/7/), [204/14/3](https://aviewfrommyseat.com/photo/317686/The%2BSphere%2C%2BVegas/section-204/row-14/seat-3/), [306/18/15](https://aviewfrommyseat.com/venue/The%2BSphere%2C%2BVegas/306/18/15/), [407/25/6](https://aviewfrommyseat.com/photo/309456/The%2BSphere%2C%2BVegas/section-407/row-25/seat-6/). 사용자 기재 위치이며 현장 측량으로 검증한 좌표는 아니다.
 
 ## 6. 검증 범위
 

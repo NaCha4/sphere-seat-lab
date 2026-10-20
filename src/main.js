@@ -122,7 +122,7 @@ function updateInfo() {
   $('height').innerHTML = `${metrics.elevation.toFixed(1)}<small>m</small>`;
   $('yaw').innerHTML = `${Math.abs(metrics.yawDifference * 180 / Math.PI).toFixed(1)}<small>°</small>`;
   const isRear = currentSeat.tier === 100 && currentSeat.row >= 24;
-  $('seat-description').textContent = isRear ? '상부 구조가 화면 윗부분을 가리는 구간입니다.' : currentSeat.tier === 400 ? '상부에서 화면과 무대의 관계를 확인하세요.' : Math.abs(currentSeat.theta) > 1 ? '측면에서 좌석 방향과 실제 무대 방향을 비교하세요.' : '중앙에서 무대와 화면을 함께 확인하세요.';
+  $('seat-description').textContent = isRear ? '하부 후방에서 상부 구조의 가림을 살펴보세요.' : currentSeat.tier === 400 ? '상부에서 화면과 객석의 관계를 확인하세요.' : Math.abs(currentSeat.theta) > .42 ? '측면에서 화면과 좌석 방향의 관계를 비교하세요.' : '중앙에서 화면과 객석의 관계를 확인하세요.';
   const params = new URLSearchParams({ section: currentSeat.section, row: currentSeat.row, seat: currentSeat.number });
   history.replaceState(null, '', `${location.pathname}?${params}`);
   populateInputs(); drawMap();

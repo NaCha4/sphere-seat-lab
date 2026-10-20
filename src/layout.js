@@ -62,6 +62,7 @@ export function makeLayout() {
             id: `${section}-${row}-${number}`, index: seats.length,
             tier: tier.id, section, row, number, theta, radius, floorY,
             centerZ: tier.centerZ, rowStart: start, rowEnd: start + span,
+            pitch: radius * span / count,
             x: Math.sin(theta) * radius, y: floorY,
             z: tier.centerZ + Math.cos(theta) * radius, yaw: theta,
           };
