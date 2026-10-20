@@ -44,9 +44,10 @@ app.innerHTML = `
     <div class="preset-heading"><h3>다른 시야 살펴보기</h3><span>QUICK VIEWS</span></div>
     <div class="presets">${PRESETS.map((p, i) => `<button data-preset="${i}"><span>${p.label}</span><small>${p.section} · ${p.row}행</small></button>`).join('')}</div>
     <div class="section-divider"></div>
-    <label class="field">스크린 콘텐츠<select id="content"><option value="aurora">오로라 · 구면 전용 화면</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 스크린 콘텐츠</option></select></label>
+    <label class="field">스크린 콘텐츠<select id="content"><option value="video">오로라 궤도 · 360° 영상</option><option value="aurora">오로라 · 정지 화면</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 스크린 콘텐츠</option></select></label>
+    <div class="playback-controls"><button id="video-playback" type="button">영상 일시정지</button><span id="video-status" role="status" aria-live="polite">20초 반복 · 무음</span></div>
     <div class="display-options"><label><input type="checkbox" id="audience">관객 채우기 · 내 자리 제외</label><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="event-stage">U2 2023 무대 표시</label></div>
-    <p class="sidebar-note">오로라는 구면 좌표에 맞춰 생성한 화면입니다.<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
+    <p class="sidebar-note">구면에 맞춰 제작한 360° 오로라 영상입니다.<br>20초 반복 · 무음 · 실제 공연 영상 아님<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
   </aside>
   <main class="scene-ui">
     <div class="scene-caption"><span class="tag">RESEARCH 04</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
@@ -63,7 +64,7 @@ const $ = id => document.getElementById(id);
 let layout = makeLayout();
 const query = new URLSearchParams(location.search);
 let currentSeat = resolveSeat(layout, { section: query.get('section') || 206, row: query.get('row') || 10, number: query.get('seat') });
-let view = 'seat', contentMode = 'aurora', labelsVisible = false, audienceEnabled = false;
+let view = 'seat', contentMode = 'video', labelsVisible = false, audienceEnabled = false;
 let renderer, model, orbit;
 const scene = new THREE.Scene(); scene.background = new THREE.Color('#030405');
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, .05, 550);
@@ -180,6 +181,28 @@ function setAudienceEnabled(enabled) {
   model?.setAudience(enabled, currentSeat);
 }
 
+function updatePlaybackUI() {
+  const state = model?.getVideoState(), active = contentMode === 'video';
+  const playing = state?.playing || (state?.status === 'loading' && state?.requested);
+  $('video-playback').disabled = !active;
+  $('video-playback').textContent = playing ? '영상 일시정지' : '영상 재생';
+  $('video-playback').setAttribute('aria-label', playing ? '스크린 영상 일시정지' : '스크린 영상 재생');
+  const messages = { loading: '영상을 불러오는 중…', buffering: '영상 버퍼링 중…', blocked: '재생 버튼을 눌러 시작하세요', error: state?.error, paused: '일시정지 · 20초 반복 · 무음', playing: '재생 중 · 20초 반복 · 무음' };
+  $('video-status').textContent = active ? messages[state?.status] || '20초 반복 · 무음' : '정지 화면';
+}
+
+function setContentMode(mode) {
+  contentMode = mode; $('content').value = mode;
+  model?.setScreen(mode); updatePlaybackUI();
+}
+
+function toggleVideoPlayback() {
+  if (contentMode !== 'video') { setContentMode('video'); void model?.setVideoPlaying(true); return; }
+  const state = model.getVideoState();
+  void model.setVideoPlaying(!(state.playing || (state.status === 'loading' && state.requested)));
+  updatePlaybackUI();
+}
+
 function createXrPanel() {
   xrPanel = new THREE.Group(); xrPanel.visible = false; scene.add(xrPanel);
   xrPanel.renderOrder = XR_OVERLAY_ORDER;
@@ -189,6 +212,7 @@ function createXrPanel() {
     ['다른 층', () => { const i = TIERS.findIndex(t => t.id === currentSeat.tier); const t = TIERS[(i + 1) % TIERS.length]; setSeat(resolveSeat(layout, { section: Math.floor((t.first + t.last) / 2), row: 10 })); }],
     ['VR 종료', () => renderer.xr.getSession()?.end()],
     ['관객 켜기/끄기', () => setAudienceEnabled(!audienceEnabled)],
+    ['영상 재생/정지', toggleVideoPlayback],
   ];
   actions.forEach(([text, action], i) => {
     const canvas = document.createElement('canvas'); canvas.width = 384; canvas.height = 144;
@@ -308,6 +332,8 @@ function setupXr() {
 async function startVr() {
   if (!vrSupported) { toast('Meta Quest 3의 브라우저에서 이 사이트를 열면 VR로 입장할 수 있습니다.'); return; }
   try {
+    // Reuse this user gesture if muted autoplay was blocked by the browser.
+    if (contentMode === 'video' && model.getVideoState().requested) void model.setVideoPlaying(true);
     const session = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'], optionalFeatures: ['bounded-floor', 'hand-tracking'] });
     await renderer.xr.setSession(session);
   } catch (e) { toast(`VR을 시작하지 못했습니다. ${e.name === 'NotAllowedError' ? '브라우저 권한을 확인해 주세요.' : '다시 VR 시작을 눌러 주세요.'}`); }
@@ -325,7 +351,9 @@ function initRenderer() {
   renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFramebufferScaleFactor(.9);
   $('viewport').append(renderer.domElement);
   orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping = true; orbit.minDistance = 12; orbit.maxDistance = 290; orbit.maxPolarAngle = Math.PI * .85; orbit.enabled = false;
-  model = new Auditorium(scene, layout, { screenMode: contentMode }); model.select(currentSeat); setupXr(); setView('seat'); updateInfo();
+  model = new Auditorium(scene, layout, { screenMode: contentMode });
+  model.onPlaybackChange = updatePlaybackUI;
+  model.select(currentSeat); setupXr(); setView('seat'); updateInfo(); updatePlaybackUI();
   renderer.domElement.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, moved: false }; renderer.domElement.setPointerCapture(e.pointerId); });
   renderer.domElement.addEventListener('pointermove', e => {
     if (renderer.xr.isPresenting) return;
@@ -376,7 +404,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, audienceEnabled, modelRevision: 'research-04', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), audienceEnabled, modelRevision: 'research-04', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setView };
 }
 
 $('section').addEventListener('change', () => setSeat(resolveSeat(layout, { section: $('section').value, row: currentSeat.row })));
@@ -386,7 +414,8 @@ document.querySelectorAll('[data-tier]').forEach(b => b.addEventListener('click'
 document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => setSeat(resolveSeat(layout, PRESETS[Number(b.dataset.preset)]))));
 $('go-seat').addEventListener('click', () => { setView('seat'); document.body.classList.remove('panel-open'); });
 $('seat-view').addEventListener('click', () => setView('seat')); $('overview').addEventListener('click', () => setView('overview')); $('reset').addEventListener('click', resetView);
-$('content').addEventListener('change', () => { contentMode = $('content').value; model?.setScreen(contentMode); });
+$('content').addEventListener('change', () => setContentMode($('content').value));
+$('video-playback').addEventListener('click', toggleVideoPlayback);
 $('audience').addEventListener('change', () => setAudienceEnabled($('audience').checked));
 $('labels').addEventListener('change', () => { labelsVisible = $('labels').checked; model?.setOverview(view === 'overview', labelsVisible); });
 $('event-stage').addEventListener('change', () => model?.setStage($('event-stage').checked));

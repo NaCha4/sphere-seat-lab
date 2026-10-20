@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BUILDING, TIERS, radians, rowGeometry, rowPoint, rowPath, sectionAngles } from './layout.js';
 import { bankBounds, bankPoint, createBankGeometry, createAisleGeometry, mergeBowlSurfaces } from './bowl-geometry.js';
 import { createAuroraMaterial } from './screen-content.js';
+import { DomeMovie } from './screen-video.js';
 import { Audience } from './audience.js';
 import { createScreenGeometry } from './screen-geometry.js';
 
@@ -268,6 +269,7 @@ export class Auditorium {
   }
 
   createScreen(mode) {
+    this.screenMode = mode;
     this.screenMaterial = this.makeScreenMaterial(mode);
     const { geometry, boundary } = createScreenGeometry();
     this.screen = new THREE.Mesh(geometry, this.screenMaterial); this.screen.name = 'interior-LED';
@@ -307,6 +309,16 @@ export class Auditorium {
   }
 
   makeScreenMaterial(mode) {
+    if (mode === 'video') {
+      if (!this.movie) this.movie = new DomeMovie({ screen: BUILDING.screen, onChange: () => {
+        this.syncVideoMaterial(); this.onPlaybackChange?.(this.getVideoState());
+      } });
+      void this.movie.setActive(true);
+      // Keep the existing image visible until a decoded frame is available.
+      if (!this.movie.ready) { this.texture = null; return createAuroraMaterial(BUILDING.screen); }
+      this.texture = this.movie.texture;
+      return new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide, transparent: true, toneMapped: false });
+    }
     this.texture = mode === 'aurora' ? null : screenTexture(mode);
     return mode === 'aurora' ? createAuroraMaterial(BUILDING.screen)
       : new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide, transparent: true, toneMapped: false });
@@ -353,13 +365,25 @@ export class Auditorium {
     this.hovered = next;
   }
   setScreen(mode) {
+    this.screenMode = mode;
+    if (mode !== 'video') void this.movie?.setActive(false);
     const opacity = this.screenMaterial.opacity, depthWrite = this.screenMaterial.depthWrite;
-    this.texture?.dispose(); this.screenMaterial.dispose();
+    if (this.texture !== this.movie?.texture) this.texture?.dispose();
+    this.screenMaterial.dispose();
     this.screenMaterial = this.makeScreenMaterial(mode);
     this.screenMaterial.opacity = opacity; this.screenMaterial.depthWrite = depthWrite;
     if (this.screenMaterial.uniforms?.uOpacity) this.screenMaterial.uniforms.uOpacity.value = opacity;
     this.screen.material = this.screenMaterial;
   }
+  syncVideoMaterial() {
+    if (this.screenMode !== 'video' || !this.movie?.ready || !this.screen || this.screenMaterial.map === this.movie.texture) return;
+    const { opacity, depthWrite } = this.screenMaterial;
+    this.screenMaterial.dispose(); this.texture = this.movie.texture;
+    this.screenMaterial = new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide, transparent: true, toneMapped: false, opacity, depthWrite });
+    this.screen.material = this.screenMaterial;
+  }
+  getVideoState() { return this.movie?.getState() ?? { active: false, requested: true, ready: false, playing: false, status: 'inactive' }; }
+  setVideoPlaying(playing) { return this.movie?.setPlaying(playing); }
   setOverview(on, labels = true) {
     this.screenMaterial.opacity = on ? .16 : 1; this.screenMaterial.depthWrite = !on;
     if (this.screenMaterial.uniforms?.uOpacity) this.screenMaterial.uniforms.uOpacity.value = this.screenMaterial.opacity;
@@ -374,6 +398,7 @@ export class Auditorium {
       if (o.isInstancedMesh) o.dispose();
       for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) { materials.add(m); if (m.map) textures.add(m.map); }
     });
+    if (this.movie) { textures.delete(this.movie.texture); this.movie.dispose(); }
     geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose());
   }
 }
