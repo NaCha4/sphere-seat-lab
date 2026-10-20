@@ -100,5 +100,22 @@ test('the decoded movie replaces the loading image without resetting overview or
       model.setHoverSeats([model.layout.byId.get('209-10-10')]);
       assert.equal(model.hovered[0].id,'209-10-10','picking uses the replacement world');
     }
+    model.setLayout(makeLayout('fan-v2'));
+    assert.equal(model.getPartitionState().amount,0,'the fan starts folded');
+    assert.equal(model.movie,movie); assert.equal(model.screen,screen); assert.equal(video.currentTime,7.25);
+    assert.equal(model.screenMaterial.uniforms.uMovie.value,texture);
+    assert.equal(model.screenMaterial.uniforms.uReady.value,1);
+    const material = model.screenMaterial;
+    for (const id of ['106-16-8','206-10-8','306-10-8']) {
+      const seat = model.layout.byId.get(id);
+      if (seat) model.select(seat);
+      assert.equal(model.screenMaterial,material,'every floor sees the same three rendered frames; no camera-dependent screen hiding');
+    }
+    model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,1);
+    model.setScreen('aurora'); assert.equal(model.screenMode,'video','this experimental world keeps three synchronized videos');
+    model.setLayout(makeLayout('original'));
+    assert.equal(model.getPartitionState(),null);
+    assert.equal(model.screenMaterial.map,texture);
+    assert.equal(players,1,'switching between triple and full-dome playback uses one decoder');
   } finally { model?.dispose(); globalThis.document = original; }
 });

@@ -5,6 +5,8 @@ import { createAuroraMaterial } from './screen-content.js';
 import { DomeMovie } from './screen-video.js';
 import { Audience } from './audience.js';
 import { createScreenGeometry } from './screen-geometry.js';
+import { FanPartitions } from './fan-partitions.js';
+import { createBandScreenMaterial } from './band-screen.js';
 
 function roundedPanel(width, height, depth, radius) {
   const x = -width / 2, y = -height / 2, r = radius, shape = new THREE.Shape();
@@ -117,6 +119,8 @@ export class Auditorium {
     this.group = this.worldGroup;
     this.pickables = []; this.chairMeshes = []; this.labels = new THREE.Group(); this.group.add(this.labels);
     this.createArchitecture(); this.createSeats();
+    this.fans = layout.world.partitions ? new FanPartitions() : null;
+    if (this.fans) { this.fans.setDeployed(Boolean(this.partitionDeployed), true); this.worldGroup.add(this.fans); }
     const ring = new THREE.Mesh(new THREE.RingGeometry(.42, .49, 32), new THREE.MeshBasicMaterial({ color: '#eac78d', side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; this.marker = ring; this.group.add(ring);
     this.hovered = [];
@@ -135,12 +139,14 @@ export class Auditorium {
 
   setLayout(layout) {
     if (layout === this.layout) return;
+    const oldScreenLayout = this.layout.world.screenLayout;
     const selectedId = this.selected?.id, stage = this.stageGroup.visible;
     const labels = this.labels.visible, overview = this.overview, audience = this.audienceEnabled;
     this.group.remove(this.worldGroup);
     disposeGroup(this.worldGroup, [...this.bankShells, ...this.aisleShells].map(s => s.geometry));
     this.audience = null;
     this.createWorld(layout);
+    if (oldScreenLayout !== layout.world.screenLayout) this.setScreen(layout.world.screenLayout ? 'video' : this.screenMode);
     if (selectedId && layout.byId.has(selectedId)) this.select(layout.byId.get(selectedId));
     this.setStage(stage); this.setAudience(audience); this.setOverview(overview, labels);
   }
@@ -290,6 +296,7 @@ export class Auditorium {
   }
 
   createScreen(mode) {
+    if (this.layout.world.screenLayout === 'three-bands') mode = 'video';
     this.screenMode = mode;
     this.screenMaterial = this.makeScreenMaterial(mode);
     const { geometry, boundary } = createScreenGeometry();
@@ -335,6 +342,10 @@ export class Auditorium {
         this.syncVideoMaterial(); this.onPlaybackChange?.(this.getVideoState());
       } });
       void this.movie.setActive(true);
+      if (this.layout.world.screenLayout === 'three-bands') {
+        this.texture = this.movie.texture;
+        return createBandScreenMaterial(this.texture, this.movie.ready, BUILDING.screen);
+      }
       // Keep the existing image visible until a decoded frame is available.
       if (!this.movie.ready) { this.texture = null; return createAuroraMaterial(BUILDING.screen); }
       this.texture = this.movie.texture;
@@ -363,6 +374,16 @@ export class Auditorium {
     this.audience?.exclude(seat);
   }
   setStage(enabled) { this.stageGroup.visible = enabled; }
+  setPartitions(deployed, immediate = false) {
+    this.partitionDeployed = deployed; this.fans?.setDeployed(deployed, immediate);
+  }
+  setPartitionAmount(amount) {
+    this.fans?.setAmount(amount);
+    this.partitionDeployed = amount >= .5;
+    if (this.fans) this.fans.target = amount;
+  }
+  getPartitionState() { return this.fans?.getState() ?? null; }
+  update(delta) { return this.fans?.update(delta) ?? false; }
   setAudience(enabled, seat = this.selected) {
     this.audienceEnabled = enabled;
     if (enabled && !this.audience) { this.audience = new Audience(this.layout); this.worldGroup.add(this.audience); }
@@ -386,6 +407,7 @@ export class Auditorium {
     this.hovered = next;
   }
   setScreen(mode) {
+    if (this.layout.world.screenLayout === 'three-bands') mode = 'video';
     this.screenMode = mode;
     if (mode !== 'video') void this.movie?.setActive(false);
     const opacity = this.screenMaterial.opacity, depthWrite = this.screenMaterial.depthWrite;
@@ -397,6 +419,9 @@ export class Auditorium {
     this.screen.material = this.screenMaterial;
   }
   syncVideoMaterial() {
+    if (this.layout.world.screenLayout === 'three-bands' && this.screenMaterial?.uniforms?.uReady) {
+      this.screenMaterial.uniforms.uReady.value = this.movie?.ready ? 1 : 0; return;
+    }
     if (this.screenMode !== 'video' || !this.movie?.ready || !this.screen || this.screenMaterial.map === this.movie.texture) return;
     const { opacity, depthWrite } = this.screenMaterial;
     this.screenMaterial.dispose(); this.texture = this.movie.texture;

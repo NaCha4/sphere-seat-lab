@@ -34,12 +34,13 @@ export function overlayMaterial(options = {}) {
   });
 }
 
-export function pickTarget(raycaster, buttons, pickables, seats) {
+export function pickTarget(raycaster, buttons, pickables, seats, occluders = []) {
   // Raycaster does not automatically honour an invisible parent's visibility.
   const button = raycaster.intersectObjects(buttons.filter(visibleInHierarchy), false)[0];
   if (button) return { type: 'button', ...button };
   const hit = raycaster.intersectObjects(pickables, false)[0];
   if (hit?.instanceId == null || !seats[hit.instanceId]) return null;
+  if (raycaster.intersectObjects(occluders.filter(visibleInHierarchy), false).some(block => block.distance < hit.distance)) return null;
   return { type: 'seat', seat: seats[hit.instanceId], ...hit };
 }
 

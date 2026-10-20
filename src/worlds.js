@@ -10,6 +10,11 @@ export const WORLDS = Object.freeze([
     description: '209·210과 반대편을 포함해 전층의 열·통로를 함께 재곡률화합니다. 중앙부 후퇴 최대 12m, 여유가 있는 열은 엇갈림 배치합니다.',
     geometry: Object.freeze({ rearShift: 12, halfWidth: 64, stagger: .25 }),
   }),
+  Object.freeze({
+    id: 'fan-v2', label: 'V2 · 부채형 차광막 / 3단 영상', shortLabel: 'V2 차광막',
+    description: '100번대 / 200번대 / 300·400번대를 세 그룹으로 나누고, 접이식 차광막 두 단과 같은 영상 세 개로 시야를 분리하는 실험입니다.',
+    geometry: null, screenLayout: 'three-bands', partitions: true,
+  }),
 ]);
 
 export function getWorld(id) {

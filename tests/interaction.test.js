@@ -47,6 +47,13 @@ test('aim resolves a seat without moving it, prioritizes UI, and clears when poi
   assert.equal(pickTarget(ray, [panel], [chairs], [seat]).type, 'seat', 'a hidden menu cannot intercept seat selection');
   menu.visible = true;
   assert.equal(pickTarget(ray, [panel], [chairs], [seat]).type, 'button', 'showing the menu restores button picking');
+  const partition = new THREE.Mesh(new THREE.PlaneGeometry(3,3),new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));
+  partition.position.z=-5;partition.updateMatrixWorld(true);
+  assert.equal(pickTarget(ray,[],[chairs],[seat],[partition]),null,'opaque fan must stop seat picking through another floor');
+  assert.equal(pickTarget(ray,[panel],[chairs],[seat],[partition]).type,'button','VR menu stays operable above the physical partitions');
+  partition.visible=false;
+  assert.equal(pickTarget(ray,[],[chairs],[seat],[partition]).type,'seat');
+  partition.geometry.dispose();partition.material.dispose();
   ray.ray.direction.set(1, 0, 0);
   assert.equal(pickTarget(ray, [panel], [chairs], [seat]), null);
   chairs.geometry.dispose(); chairs.material.dispose(); chairs.dispose();

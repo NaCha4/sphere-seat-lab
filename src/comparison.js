@@ -1,6 +1,7 @@
 import { makeLayout, resolveSeat } from './layout.js';
 import { evaluateSeat } from './sightline.js';
 import { getWorld } from './worlds.js';
+import { evaluatePartitions } from './partition-sightline.js';
 
 // Worker-owned CPU data only. GPU resources belong solely to the active world.
 const layouts = new Map(), results = new Map();
@@ -19,7 +20,12 @@ function evaluation(worldId, selection, audience) {
   return results.get(key);
 }
 
-export function compareWorlds({ worldId, selection, audience }) {
+export function compareWorlds({ worldId, selection, audience, partitionAmount = 0 }) {
+  if (getWorld(worldId).partitions) {
+    if (!layouts.has(worldId)) layouts.set(worldId, makeLayout(worldId));
+    const seat = resolveSeat(layouts.get(worldId), selection);
+    return { partition: evaluatePartitions(seat, partitionAmount) };
+  }
   return {
     original: evaluation('original', selection, audience),
     variant: evaluation(worldId, selection, audience),
