@@ -1,5 +1,5 @@
 import { BUILDING } from './layout.js';
-import { SCREEN_BANDS, bandForTier, bandFrame, fanRing, partitionBlocksSegment } from './partition-layout.js';
+import { SCREEN_BANDS, bandForTier, bandFrame, fanRings, partitionBlocksSegment } from './partition-layout.js';
 
 export function bandTargets(band) {
   const frame = bandFrame(band, BUILDING.screen), { radius, centerY, centerZ } = BUILDING.screen;
@@ -11,11 +11,11 @@ export function bandTargets(band) {
 }
 
 export function evaluatePartitions(seat, amount = 0) {
-  const own = bandForTier(seat.tier), ring = fanRing(amount);
+  const own = bandForTier(seat.tier), rings = fanRings(amount);
   const eye = { x: seat.x, y: seat.y + BUILDING.eyeHeight, z: seat.z };
   const bands = SCREEN_BANDS.map(band => {
     const targets = bandTargets(band);
-    const blocked = targets.filter(p => partitionBlocksSegment(eye, p, amount, ring)).length;
+    const blocked = targets.filter(p => partitionBlocksSegment(eye, p, amount, rings)).length;
     return { id: band.id, label: band.label, samples: targets.length, blocked, visible: targets.length - blocked };
   });
   return { amount, ownBand: own.id, bands,

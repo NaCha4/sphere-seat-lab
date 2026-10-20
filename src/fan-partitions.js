@@ -22,8 +22,9 @@ export class FanPartitions extends THREE.Group {
 
   setAmount(amount) {
     this.amount = THREE.MathUtils.clamp(amount, 0, 1);
-    const ring = fanRing(this.amount), hub = { x: 0, z: PARTITIONS.rearZ }, half = PARTITIONS.thickness / 2;
+    const hub = { x: 0, z: PARTITIONS.rearZ }, half = PARTITIONS.thickness / 2;
     for (const { mesh, ribs, level } of this.membranes) {
+      const ring = fanRing(this.amount, level);
       const positions = [], indices = [], lines = [];
       for (const p of [hub, ...ring]) positions.push(p.x, level + half, p.z, p.x, level - half, p.z);
       for (let i = 0; i < ring.length - 1; i++) {

@@ -50,6 +50,9 @@ test('folded, partial and deployed fan membranes remain closed solids with reusa
     fans.setAmount(amount);
     for (const {mesh} of fans.membranes) {
       const p = mesh.geometry.attributes.position, idx = mesh.geometry.index.array, edges = new Map();
+      if (amount === 1) for (let i = 0; i < p.count; i++) {
+        assert.ok(Math.hypot(p.getX(i),p.getZ(i),p.getY(i)-BUILDING.centerY) < BUILDING.diameter/2, 'unfolded panels must not poke through the exterior');
+      }
       let volume = 0;
       for(let i=0;i<idx.length;i+=3){
         const [a,b,c] = [...idx.slice(i,i+3)];
