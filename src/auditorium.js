@@ -330,15 +330,9 @@ export class Auditorium {
   setHoverSeats(seats, force = false) {
     const next = [...new Map(seats.filter(Boolean).map(s => [s.id, s])).values()].slice(0, 2);
     if (!force && next.length === this.hovered.length && next.every((s, i) => s.id === this.hovered[i].id)) return;
-    const affected = new Map([...this.hovered, ...next].map(s => [s.id, s]));
-    const ids = new Set(next.map(s => s.id));
-    for (const mesh of this.chairMeshes) {
-      for (const seat of affected.values()) {
-        const color = ids.has(seat.id) ? new THREE.Color('#77ffe0') : this.selected?.id === seat.id ? new THREE.Color('#edd096') : mesh.userData.baseColors.get(seat.tier);
-        mesh.setColorAt(seat.index, color);
-      }
-      if (affected.size) mesh.instanceColor.needsUpdate = true;
-    }
+    // Move only the two reusable highlight objects. Updating instanceColor on
+    // every chair part here re-uploaded the entire auditorium on each target
+    // change (about 2.5 MB), needlessly stalling the XR frame.
     const grow = new THREE.Matrix4().makeScale(1.045, 1.045, 1.045);
     this.hoverSlots.forEach((slot, i) => {
       slot.visible = Boolean(next[i]);

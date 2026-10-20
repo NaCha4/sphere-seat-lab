@@ -73,7 +73,7 @@ const keyLight = new THREE.DirectionalLight('#afcde3', 1.25); keyLight.position.
 const fillLight = new THREE.DirectionalLight('#798aa5', .55); fillLight.position.set(-30, 25, 30); scene.add(fillLight);
 const raycaster = new THREE.Raycaster();
 let drag = null, yaw = currentSeat.yaw, pitch = .06, framePose = null, pendingVrAlign = false, vrSupported = false;
-const controllers = [], xrButtons = []; let xrPanel = null, lastStick = 0, lastAimUpdate = -Infinity, hoverCaption = null;
+const controllers = [], xrButtons = []; let xrPanel = null, lastStick = 0, lastAimUpdate = -Infinity;
 
 function toast(message) {
   $('toast').textContent = message; $('toast').classList.add('visible');
@@ -201,29 +201,22 @@ function createXrPanel() {
     xrPanel.add(mesh); xrButtons.push(mesh);
   });
   const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 100;
+  // Keep this texture static during XR. Repainting a dark foreground panel on
+  // every target change can flash/stall on the headset. The chair itself gives
+  // live target feedback; this line is a background-free, fixed instruction.
+  const ctx = canvas.getContext('2d');
+  ctx.font = '500 33px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#baffdf';
+  ctx.fillText('민트색 의자를 확인한 뒤 핀치·트리거로 이동', 500, 50);
   const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
   const caption = new THREE.Mesh(new THREE.PlaneGeometry(1.36, .136), overlayMaterial({ map }));
   caption.position.set(0, .17, 0); caption.renderOrder = XR_OVERLAY_ORDER;
   xrPanel.add(caption);
-  hoverCaption = { canvas, map, text: null };
-  updateHoverCaption(null);
-}
-
-function updateHoverCaption(seat) {
-  if (!hoverCaption) return;
-  const text = seat ? `${seat.section} 구역 · ${seat.row}행 · ${seat.number}번째  /  핀치·트리거로 이동` : '좌석을 가리키면 민트색으로 빛납니다 · 핀치·트리거로 이동';
-  if (hoverCaption.text === text) return;
-  hoverCaption.text = text;
-  const ctx = hoverCaption.canvas.getContext('2d');
-  ctx.fillStyle = '#122b2d'; ctx.fillRect(0, 0, 1000, 100);
-  ctx.font = '500 33px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#baffdf';
-  ctx.fillText(text, 500, 50); hoverCaption.map.needsUpdate = true;
 }
 
 function clearAimPreview() {
   for (const state of controllers) { state.target = null; state.dot.visible = false; state.ray.scale.z = 6; }
   for (const button of xrButtons) button.material.color.set('#ffffff');
-  model?.setHoverSeats([]); updateHoverCaption(null); lastAimUpdate = -Infinity;
+  model?.setHoverSeats([]); lastAimUpdate = -Infinity;
 }
 
 function updateAimTarget(state) {
@@ -240,7 +233,6 @@ function updateAimTarget(state) {
 
 function showAimPreview() {
   model.setHoverSeats(controllers.map(s => s.target?.seat).filter(Boolean));
-  updateHoverCaption(controllers.find(s => s.target?.seat)?.target.seat);
   for (const button of xrButtons) button.material.color.set(controllers.some(s => s.target?.object === button) ? '#baffdf' : '#ffffff');
 }
 
