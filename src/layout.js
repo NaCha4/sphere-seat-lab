@@ -8,7 +8,9 @@ export const BUILDING = Object.freeze({
   screenApex: 73.152,
   publishedScreenArea: 14864.4864,
   publishedSeats: 17385,
-  screen: { x: 63.5, y: 61.152, z: 62, centerY: 12, centerZ: -13 },
+  // A tilted spherical cap is fitted to the two independently published anchors.
+  // Radius and tilt remain estimates; area and maximum height are constraints.
+  screen: { radius: 55, tiltDegrees: 35, centerY: 18.152, centerZ: -13 },
   bowlCenterZ: -20,
   stage: { x: 0, y: 1.2, z: -40, width: 25, depth: 13 },
   seatPitch: 0.63,

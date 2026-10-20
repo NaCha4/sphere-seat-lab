@@ -30,5 +30,15 @@ test('baseline balcony blocks the upper screen from rear 100 seats but not front
     assert.equal(seesUpperScreen(206, 10), true);
     assert.equal(seesUpperScreen(210, 10), true);
     assert.equal(seesUpperScreen(406, 23), true);
+    const g = model.screen.geometry, p = g.attributes.position, indices = g.index;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    let area = 0, highest = -Infinity;
+    for (let i = 0; i < indices.count; i += 3) {
+      a.fromBufferAttribute(p, indices.getX(i)); b.fromBufferAttribute(p, indices.getX(i + 1)); c.fromBufferAttribute(p, indices.getX(i + 2));
+      area += b.sub(a).cross(c.sub(a)).length() / 2;
+    }
+    for (let i = 0; i < p.count; i++) highest = Math.max(highest, p.getY(i));
+    assert.ok(Math.abs(area / BUILDING.publishedScreenArea - 1) < .005, 'screen mesh must fit the published surface area');
+    assert.ok(Math.abs(highest - BUILDING.screenApex) < .1, 'screen mesh must fit the published apex height');
   } finally { model.dispose(); }
 });

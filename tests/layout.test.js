@@ -58,6 +58,6 @@ test('rows ascend, upper side sections taper, and center chair has the smallest 
   assert.ok(layout.bySection.get(403).rows.size < layout.bySection.get(406).rows.size);
   assert.ok(layout.bySection.get(301).rows.size < layout.bySection.get(306).rows.size);
   assert.ok(Math.abs(seatMetrics(resolveSeat(layout, { section: 206 })).yawDifference) < Math.abs(seatMetrics(resolveSeat(layout, { section: 210 })).yawDifference));
-  assert.equal(BUILDING.screen.centerY + BUILDING.screen.y, BUILDING.screenApex);
+  assert.ok(Math.abs(BUILDING.screen.centerY + BUILDING.screen.radius - BUILDING.screenApex) < .0001);
   assert.equal(TIERS.length, 4);
 });

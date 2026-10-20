@@ -9,18 +9,18 @@ Reviewed 2026-10-20. Units: metres, event floor y=0, stage in negative Z, origin
 | Exterior diameter | 516 ft | 157.2768 m |
 | Above-ground exterior height | 366 ft | 111.5568 m; truncated sphere centre y=32.9184 m |
 | Interior LED apex above event floor | 240 ft | 73.152 m |
-| Published LED surface area | 160,000 ft² | 14,864.4864 m² reference; current surface is an approximate independently parameterised shape, not a surveyed equal-area fit |
+| Published LED surface area | 160,000 ft² | 14,864.4864 m²; tilted spherical-cap mesh fitted to this area and the apex height |
 | Seating tiers | Four plus two suite levels | 100, 200, 300, 400; broad overhang at 100 rear, continuous upper bank rather than four identical balconies |
 | Section IDs | Multiple event seating charts | 101–110, 201–211, 301–311, 403–409 |
 | Published seat capacity | Owner science page 17,385; older architect/company documents 17,600 | Show-dependent and differently reported; rendered count is not used as proof of capacity accuracy |
 
-The exterior, supporting roof dome and suspended interior screen are **different surfaces**. Exterior radius must not be reused as the LED radius. The interior model uses a spheroidal screen cut back over the upper seating; it is not an all-surrounding illuminated sphere.
+The exterior, supporting roof dome and suspended interior screen are **different surfaces**. Exterior radius must not be reused as the LED radius. The interior model uses a tilted spherical cap, open toward the rear seating; it is not an all-surrounding illuminated sphere. Fitting area and apex does not establish the real as-built curvature.
 
 ## Explicit estimates
 
 `src/layout.js` centralises parameters; `src/auditorium.js` constructs geometry from them.
 
-- Screen axes: x=63.5, y=61.152, z=62; centre y=12, z=-13. Rear edge smoothly rises to y=45. These values approximate the photographed silhouette and section, rather than establish the real screen radius.
+- Screen radius55m and tilt35° are estimated from the photographic silhouette and section. Centre y=18.152, z=-13. Cap height is derived from area/(2πr); the analytical surface area is14,864.4864m² and its highest point is73.152m. Triangulated mesh area is verified within0.5%. These two fitted constraints do not establish the real radius, tilt or projection calibration.
 - Main row numbers 12–37 by default, optional retractable 1–11. Terrace 1–21. Lower Gallery central sections up to20, ends as few as9. Upper Gallery centre up to25, outer sections13. Rows from secondary seating guides; not a verified ticketing inventory.
 - Row depth, rise and seat pitch: inferred from section drawings, photos and proportions. Seat pitch .63 m. Seated eye height1.18 m above model tread.
 - Stage: generic25×13 m rectangle, top1.2 m. Event-specific U2, Metallica or other stages are not treated as permanent architecture.

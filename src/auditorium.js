@@ -26,15 +26,20 @@ function sector(inner, outer, start, end, top, bottom = top - .2, segments = 10)
 
 function screenGeometry() {
   const c = BUILDING.screen, p = [], uv = [], indices = [];
-  const width = 180, height = 56;
+  const width = 180, height = 72;
+  const capHeight = BUILDING.publishedScreenArea / (2 * Math.PI * c.radius);
+  const polarMax = Math.acos(1 - capHeight / c.radius);
+  const point = new THREE.Vector3(), tiltAxis = new THREE.Vector3(1, 0, 0);
   for (let x = 0; x <= width; x++) {
     const az = -Math.PI + 2 * Math.PI * x / width;
-    const a = Math.abs(az);
-    const t = THREE.MathUtils.smoothstep(a, radians(74), radians(156));
-    const bottom = THREE.MathUtils.lerp(Math.acos(-c.centerY / c.y), Math.acos((45 - c.centerY) / c.y), t);
+    // Weld the periodic seam exactly, including ray tests on the centre plane.
+    const sinAz = Math.abs(Math.sin(az)) < 1e-12 ? 0 : Math.sin(az);
+    const cosAz = Math.abs(Math.cos(az)) < 1e-12 ? 0 : Math.cos(az);
     for (let y = 0; y <= height; y++) {
-      const polar = bottom * y / height;
-      p.push(c.x * Math.sin(polar) * Math.sin(az), c.centerY + c.y * Math.cos(polar), c.centerZ - c.z * Math.sin(polar) * Math.cos(az));
+      const polar = polarMax * y / height;
+      point.set(c.radius * Math.sin(polar) * sinAz, c.radius * Math.cos(polar), -c.radius * Math.sin(polar) * cosAz);
+      point.applyAxisAngle(tiltAxis, -radians(c.tiltDegrees));
+      p.push(point.x, point.y + c.centerY, point.z + c.centerZ);
       uv.push(x / width, 1 - y / height);
     }
   }
@@ -268,6 +273,7 @@ export class Auditorium {
     const geometries = new Set(), materials = new Set(), textures = new Set();
     this.group.traverse(o => {
       if (o.geometry) geometries.add(o.geometry);
+      if (o.isInstancedMesh) o.dispose();
       for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) { materials.add(m); if (m.map) textures.add(m.map); }
     });
     geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose());
