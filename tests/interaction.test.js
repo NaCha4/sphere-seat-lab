@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { WebGLRenderList } from 'three/src/renderers/webgl/WebGLRenderLists.js';
-import { XR_OVERLAY_ORDER, overlayMaterial, createAimPointer, pickTarget } from '../src/interaction.js';
+import { XR_OVERLAY_ORDER, overlayMaterial, createAimPointer, pickTarget, pollMenuToggle } from '../src/interaction.js';
 
 test('VR controls and pointer are composited after the transparent LED regardless of distance', () => {
   const list = new WebGLRenderList(), camera = new THREE.PerspectiveCamera();
@@ -42,8 +42,35 @@ test('aim resolves a seat without moving it, prioritizes UI, and clears when poi
   const panel = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), overlayMaterial());
   panel.position.z = -1; panel.updateMatrixWorld(true);
   assert.equal(pickTarget(ray, [panel], [chairs], [seat]).type, 'button');
+  const menu = new THREE.Group(); menu.add(panel); menu.updateMatrixWorld(true);
+  menu.visible = false;
+  assert.equal(pickTarget(ray, [panel], [chairs], [seat]).type, 'seat', 'a hidden menu cannot intercept seat selection');
+  menu.visible = true;
+  assert.equal(pickTarget(ray, [panel], [chairs], [seat]).type, 'button', 'showing the menu restores button picking');
   ray.ray.direction.set(1, 0, 0);
   assert.equal(pickTarget(ray, [panel], [chairs], [seat]), null);
   chairs.geometry.dispose(); chairs.material.dispose(); chairs.dispose();
   panel.geometry.dispose(); panel.material.dispose();
+});
+
+test('A/X menu toggle fires once per press, consumes simultaneous hands and ignores selection buttons', () => {
+  const controller = () => ({ gamepad: { mapping: 'xr-standard', buttons: Array.from({ length: 7 }, () => ({ pressed: false, touched: false })) }, menuWasPressed: false });
+  const left = controller(), right = controller(), controllers = [left, right];
+  assert.equal(pollMenuToggle(controllers), false);
+  left.gamepad.buttons[0].pressed = true;
+  right.gamepad.buttons[1].pressed = true;
+  right.gamepad.buttons[4].touched = true;
+  assert.equal(pollMenuToggle(controllers), false, 'trigger, squeeze and resting thumb must not toggle');
+  right.gamepad.buttons[4].pressed = true;
+  assert.equal(pollMenuToggle(controllers), true);
+  for (let i = 0; i < 120; i++) assert.equal(pollMenuToggle(controllers), false, 'holding A cannot repeatedly toggle');
+  right.gamepad.buttons[4].pressed = false;
+  assert.equal(pollMenuToggle(controllers), false);
+  left.gamepad.buttons[4].pressed = right.gamepad.buttons[4].pressed = true;
+  assert.equal(pollMenuToggle(controllers), true);
+  assert.equal(pollMenuToggle(controllers), false, 'both edges must be consumed in the same frame');
+  left.gamepad = null; right.gamepad = null;
+  assert.equal(pollMenuToggle(controllers), false, 'hand tracking and disconnect must not toggle');
+  left.gamepad = { mapping: 'standard', buttons: [{},{},{},{},{ pressed: true }] };
+  assert.equal(pollMenuToggle(controllers), false, 'non-XR gamepads must not use the Quest mapping');
 });
