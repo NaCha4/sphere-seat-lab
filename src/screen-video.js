@@ -1,11 +1,8 @@
 import * as THREE from 'three';
+import { getVideoPreset, videoSource } from './video-library.js';
 
 export const SCREEN_MOVIE_URL = './media/sphere-motion-loop.mp4';
 export const BAND_MOVIE_URL = './media/sphere-motion-bands.mp4';
-const MOVIE_SOURCES = {
-  sphere: { url: SCREEN_MOVIE_URL, poster: './media/sphere-motion-loop.jpg' },
-  bands: { url: BAND_MOVIE_URL, poster: './media/sphere-motion-bands.jpg' },
-};
 
 // The mesh UV covers only the spherical cap. Sample the corresponding latitude
 // range of a complete 2:1 equirectangular movie, rather than stretch 180° into it.
@@ -22,21 +19,21 @@ export function fitSphericalVideo(texture, screen) {
 }
 
 export class DomeMovie {
-  constructor({ screen, video = document.createElement('video'), onChange = () => {}, mode = 'sphere' }) {
+  constructor({ screen, video = document.createElement('video'), onChange = () => {}, mode = 'sphere', clipId = 'motion' }) {
     this.video = video; this.onChange = onChange;
-    this.mode = mode; this.sourceGeneration = 0; this.seekTime = null;
+    this.mode = mode; this.clipId = getVideoPreset(clipId).id; this.sourceGeneration = 0; this.seekTime = null;
     this.active = false; this.wantsPlayback = true; this.ready = false;
     this.blocked = false; this.buffering = false; this.error = ''; this.disposed = false;
     video.muted = true; video.defaultMuted = true; video.loop = true;
     video.playsInline = true; video.preload = 'auto';
     video.setAttribute('playsinline', '');
-    video.poster = MOVIE_SOURCES[mode].poster;
+    video.poster = videoSource(mode,this.clipId).poster;
     this.texture = fitSphericalVideo(new THREE.VideoTexture(video), screen);
     this.listeners = new Map();
     const listen = (name, fn) => { video.addEventListener(name,fn); this.listeners.set(name,fn); };
     listen('loadedmetadata', () => {
       if (this.seekTime !== null) {
-        video.currentTime = this.seekTime % (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 20);
+        video.currentTime = this.seekTime % (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : getVideoPreset(this.clipId).duration);
         this.seekTime = null;
       }
     });
@@ -50,16 +47,15 @@ export class DomeMovie {
     listen('pause',() => this.emit());
     listen('waiting',() => { this.buffering = true; this.emit(); });
     listen('error',() => { this.error = '영상을 불러오지 못했습니다. 재생 버튼으로 다시 시도하세요.'; this.emit(); });
-    video.src = MOVIE_SOURCES[mode].url;
+    video.src = videoSource(mode,this.clipId).url;
   }
 
-  setSource(mode) {
-    if (mode === this.mode) return;
-    const source = MOVIE_SOURCES[mode];
-    if (!source) throw new Error(`Unknown screen movie: ${mode}`);
-    this.seekTime = this.seekTime ?? (this.video.currentTime || 0);
+  setSource(mode, clipId = this.clipId) {
+    const next = getVideoPreset(clipId), source = videoSource(mode,next.id);
+    if (mode === this.mode && next.id === this.clipId) return;
+    this.seekTime = next.id === this.clipId ? this.seekTime ?? (this.video.currentTime || 0) : 0;
     this.sourceGeneration++;
-    this.mode = mode; this.ready = false; this.blocked = false; this.buffering = false; this.error = '';
+    this.mode = mode; this.clipId = next.id; this.ready = false; this.blocked = false; this.buffering = false; this.error = '';
     this.video.pause(); this.video.poster = source.poster; this.video.src = source.url;
     this.video.load(); this.emit();
   }
@@ -71,8 +67,8 @@ export class DomeMovie {
     return {
       active: this.active, requested: this.wantsPlayback, ready: this.ready, playing,
       status: this.error ? 'error' : this.blocked ? 'blocked' : !this.ready ? 'loading' : this.buffering && playing ? 'buffering' : playing ? 'playing' : 'paused',
-      duration: Number.isFinite(this.video.duration) ? this.video.duration : 20,
-      currentTime: this.seekTime ?? (this.video.currentTime || 0), error: this.error, source: this.mode,
+      duration: Number.isFinite(this.video.duration) ? this.video.duration : getVideoPreset(this.clipId).duration,
+      currentTime: this.seekTime ?? (this.video.currentTime || 0), error: this.error, source: this.mode, clipId: this.clipId,
     };
   }
 

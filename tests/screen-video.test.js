@@ -6,6 +6,7 @@ import { makeLayout, resolveSeat } from '../src/layout.js';
 import { Auditorium } from '../src/auditorium.js';
 import { createScreenGeometry } from '../src/screen-geometry.js';
 import { DomeMovie, fitSphericalVideo, SCREEN_MOVIE_URL, BAND_MOVIE_URL } from '../src/screen-video.js';
+import { VIDEO_PRESETS, getVideoPreset } from '../src/video-library.js';
 
 class FakeVideo extends EventTarget {
   paused = true; ended = false; readyState = 0; duration = 20; currentTime = 0;
@@ -136,4 +137,50 @@ test('switching wide/full-dome movies preserves pause and restores the timeline 
   video.currentTime=0;video.dispatchEvent(new Event('loadedmetadata'));video.decode();
   assert.equal(video.currentTime,11.5);assert.equal(movie.getState().requested,false);
   assert.equal(video.paused,true);movie.dispose();
+});
+
+test('choosing another movie resets its timeline but retains pause and uses the same decoder', async () => {
+  const video=new FakeVideo(),movie=new DomeMovie({screen:BUILDING.screen,video});
+  video.decode();await movie.setActive(true);video.currentTime=17;
+  await movie.setPlaying(false);movie.setSource('sphere','sunset');
+  assert.equal(video.src,getVideoPreset('sunset').sphere.url);
+  assert.equal(video.poster,getVideoPreset('sunset').sphere.poster);
+  assert.equal(movie.getState().clipId,'sunset');
+  assert.equal(movie.getState().currentTime,0);
+  video.dispatchEvent(new Event('loadedmetadata'));video.decode();
+  assert.equal(video.currentTime,0);assert.equal(video.paused,true);
+  video.currentTime=3;movie.setSource('bands');
+  video.dispatchEvent(new Event('loadedmetadata'));video.decode();
+  assert.equal(video.src,getVideoPreset('sunset').bands.url);
+  assert.equal(video.currentTime,3,'layout change preserves progress within the chosen movie');
+  movie.setSource('bands','motion');video.dispatchEvent(new Event('loadedmetadata'));
+  assert.equal(video.src,BAND_MOVIE_URL);assert.equal(video.currentTime,0);
+  assert.equal(movie.video,video);assert.equal(movie.getState().requested,false);
+  assert.equal(getVideoPreset('untrusted-query-value').id,'motion');
+  assert.equal(new Set(VIDEO_PRESETS.map(v=>v.id)).size,VIDEO_PRESETS.length);
+  movie.dispose();
+});
+
+test('the selected movie survives all world changes and selection from static content', () => {
+  const video=new FakeVideo(),original=globalThis.document;
+  const ctx={fillRect(){},roundRect(){},fill(){},fillText(){}};
+  let model,players=0;
+  globalThis.document={createElement(tag){if(tag==='video'){players++;return video;}return {width:0,height:0,getContext(){return ctx;}};}};
+  try {
+    model=new Auditorium(new THREE.Scene(),makeLayout(),{screenMode:'aurora'});
+    model.setVideo('sunset');model.setScreen('video');video.decode();
+    for(const id of ['curvature-v1','fan-v2','original']) {
+      model.setLayout(makeLayout(id));
+      assert.equal(model.videoId,'sunset');assert.equal(model.movie.getState().clipId,'sunset');
+      assert.equal(video.src,getVideoPreset('sunset')[id==='fan-v2'?'bands':'sphere'].url);
+      video.dispatchEvent(new Event('loadedmetadata'));video.decode();
+      assert.equal(model.screenMaterial.uniforms.uReady.value,1);
+      if(id!=='fan-v2') {
+        assert.equal(model.screenMaterial.uniforms.uVerticalExponent.value,.5);
+        assert.ok(model.screenMaterial.uniforms.uBands.value.every(b=>b.x===0&&Math.abs(b.y-BUILDING.screenApex)<.001));
+        assert.ok(model.screenMaterial.uniforms.uAtlas.value.every(b=>b.x===0&&b.y===1));
+      }
+    }
+    assert.equal(players,1);
+  } finally {model?.dispose();globalThis.document=original;}
 });

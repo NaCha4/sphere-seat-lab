@@ -4,6 +4,7 @@ import { BUILDING, TIERS, radians, rowGeometry, rowPoint, rowPath, sectionAngles
 import { bankBounds, bankPoint, createBankGeometry, createAisleGeometry, mergeBowlSurfaces } from './bowl-geometry.js';
 import { createAuroraMaterial } from './screen-content.js';
 import { DomeMovie } from './screen-video.js';
+import { getVideoPreset } from './video-library.js';
 import { Audience } from './audience.js';
 import { createScreenGeometry } from './screen-geometry.js';
 import { FanPartitions } from './fan-partitions.js';
@@ -107,8 +108,8 @@ export function screenTexture(mode = 'earth') {
 }
 
 export class Auditorium {
-  constructor(scene, layout, { screenMode = 'aurora' } = {}) {
-    this.scene = scene; this.layout = layout; this.group = new THREE.Group();
+  constructor(scene, layout, { screenMode = 'aurora', videoId = 'motion' } = {}) {
+    this.scene = scene; this.layout = layout; this.videoId = getVideoPreset(videoId).id; this.group = new THREE.Group();
     this.group.name = 'Sphere world'; scene.add(this.group);
     this.createWorld(layout); this.createScreen(screenMode); this.createEnclosure(); this.createExterior();
   }
@@ -349,14 +350,18 @@ export class Auditorium {
 
   makeScreenMaterial(mode) {
     if (mode === 'video') {
-      if (!this.movie) this.movie = new DomeMovie({ screen: BUILDING.screen, onChange: () => {
+      if (!this.movie) this.movie = new DomeMovie({ screen: BUILDING.screen, clipId: this.videoId, onChange: () => {
         this.syncVideoMaterial(); this.onPlaybackChange?.(this.getVideoState());
       } });
-      this.movie.setSource(this.layout.world.screenLayout === 'three-bands' ? 'bands' : 'sphere');
+      this.movie.setSource(this.layout.world.screenLayout === 'three-bands' ? 'bands' : 'sphere', this.videoId);
       void this.movie.setActive(true);
       if (this.layout.world.screenLayout === 'three-bands') {
         this.texture = this.movie.texture;
         return createBandScreenMaterial(this.texture, this.movie.ready, BUILDING.screen);
+      }
+      if (getVideoPreset(this.videoId).projection === 'landscape') {
+        this.texture = this.movie.texture;
+        return createBandScreenMaterial(this.texture, this.movie.ready, BUILDING.screen, { panoramic: true });
       }
       // Keep the existing image visible until a decoded frame is available.
       if (!this.movie.ready) { this.texture = null; return createAuroraMaterial(BUILDING.screen); }
@@ -431,7 +436,7 @@ export class Auditorium {
     this.screen.material = this.screenMaterial;
   }
   syncVideoMaterial() {
-    if (this.layout.world.screenLayout === 'three-bands' && this.screenMaterial?.uniforms?.uReady) {
+    if (this.screenMaterial?.uniforms?.uReady) {
       this.screenMaterial.uniforms.uReady.value = this.movie?.ready ? 1 : 0; return;
     }
     if (this.screenMode !== 'video' || !this.movie?.ready || !this.screen || this.screenMaterial.map === this.movie.texture) return;
@@ -441,6 +446,12 @@ export class Auditorium {
     this.screen.material = this.screenMaterial;
   }
   getVideoState() { return this.movie?.getState() ?? { active: false, requested: true, ready: false, playing: false, status: 'inactive' }; }
+  setVideo(id) {
+    const next = getVideoPreset(id).id;
+    if (next === this.videoId) return;
+    this.videoId = next;
+    if (this.screenMode === 'video') this.setScreen('video');
+  }
   setVideoPlaying(playing) { return this.movie?.setPlaying(playing); }
   setOverview(on, labels = true) {
     this.overview = on;

@@ -1,6 +1,6 @@
-# Screen content — Research 08
+# Screen content — Research 09
 
-All three worlds now use **Chromatic Flux**, a self-authored procedural motion graphic. Rotating neon orbits, flowing contours and expanding rings replace the aurora movie. It has a continuous 20-second loop with no cuts, audio, external footage or images. This is presentation content, not evidence of reduced motion sickness.
+All three worlds offer a shared video selector. **Chromatic Flux** remains the default, unchanged: a self-authored procedural motion graphic with rotating neon orbits, flowing contours and expanding rings. It has a continuous 20-second loop with no cuts, audio, external footage or images. This is presentation content, not evidence of reduced motion sickness.
 
 | World | Video | Dimensions |
 | --- | --- | --- |
@@ -16,3 +16,19 @@ The full-sphere player maps the corresponding latitude range to the clipped LED 
 The earlier aurora movies and their generation scripts remain as reference assets; they are no longer the active movies. Static aurora, Earth, stars and grid modes remain available. Quest 3 playback and frame rate require device verification.
 
 Validation: all five MP4s decoded through 480 frames without errors. All three worlds played in local Chrome without console errors. The 38-test suite and production build passed.
+
+## Mountain sunset
+
+The additional preset uses [Sweeping Timelapse of Mountains and Clouds at Sunset](https://www.pexels.com/video/sweeping-timelapse-of-mountains-and-clouds-at-sunset-36753274/) by **Giuseppe Paoletti**, under the [Pexels License](https://www.pexels.com/license/) checked on 2026-10-21. The license permits free use in a website/app and modifications; the app credits the creator. This project is not a stock-footage redistribution service. The original download stays in ignored `tmp/sunset/`; only adapted playback assets are published.
+
+- Verified source: 3840×2160, 25 fps, 8 seconds.
+- `sphere-sunset-loop.mp4`: 3840×1920, 24 fps, 8 seconds, silent H.264 High / yuv420p. Trims the bottom foreground. A full-width landscape shader maps the image across the screen arc and moves the horizon lower with a square-root vertical fit. It does not wrap a flat image across an equirectangular pole. This is a presentation fit, not a calibrated angular projection.
+- `sphere-sunset-bands.mp4`: 3072×1450, 24 fps, 8 seconds. Each of the three strips is a separate aspect-matched cover crop around the mountain/cloud horizon; it is not a squashed full-frame copy.
+- Posters use matching `.jpg` filenames. `public/media/sunset-credits.json` stores source, license and adaptation metadata.
+- Reproduce with `python scripts/prepare-sunset-video.py --ffmpeg /path/to/ffmpeg`. The downloaded source is required at the documented default input path, or use `--input`.
+
+This is a conventional landscape video mapped onto a curved surface, not native 360° capture. It does not represent the landscape's true angular field of view. The 8-second clip repeats from its beginning; it is not advertised as a seamless temporal loop.
+
+The top **재생 영상** selector works in every world, including V2. **다음 영상** in the Quest menu cycles through the same presets. Changing the movie starts it at zero while preserving pause/play intent. Changing the world preserves the selected movie and time. Shared seat URLs include the selected video ID. Static content options remain available outside V2.
+
+Research 09 validation: both sunset outputs decode through 192 frames without errors. All 40 tests pass, including preset selection, timeline reset, pause retention, world changes and the landscape shader. Chrome playback, source switching and pause retention were checked in the local build.

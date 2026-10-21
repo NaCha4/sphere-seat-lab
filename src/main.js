@@ -5,6 +5,7 @@ import { BUILDING, TIERS, PRESETS, rowPoint, rowPath, sectionAngles, makeLayout,
 import { WORLDS, getWorld } from './worlds.js';
 import { bandForTier } from './partition-layout.js';
 import { seatEye } from './seating-pose.js';
+import { VIDEO_PRESETS, getVideoPreset } from './video-library.js';
 import { SOURCES, CONFIDENCE } from './evidence.js';
 import { XR_OVERLAY_ORDER, overlayMaterial, pickTarget, createAimPointer, isMenuButtonPressed, pollMenuToggle } from './interaction.js';
 
@@ -30,12 +31,14 @@ app.innerHTML = `
   <div id="veil"></div>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Sphere Seat Lab 홈">${icon('sphere', 31)}<span>SPHERE<span class="brand-sub">SEAT LAB</span></span></a>
-    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 08</span><h1>좌석에서 만나는 스피어</h1></div>
+    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 09</span><h1>좌석에서 만나는 스피어</h1></div>
     <div class="header-actions"><button class="icon-button" id="research" aria-label="모델 근거와 출처">${icon('info')}</button><button class="vr-button" id="vr">${icon('vr', 20)}<span>VR 시작</span></button></div>
   </header>
   <aside class="sidebar" aria-label="좌석과 보기 설정">
     <div class="panel-title"><div><span class="eyebrow">FIXED BOWL / RECONSTRUCTION</span><h2>나의 관람 위치</h2></div><span class="live-dot" title="원본 모델"></span></div>
     <div class="world-controls"><label class="field">객석 월드<select id="world">${WORLDS.map(w => `<option value="${w.id}">${w.label}</option>`).join('')}</select></label><p id="world-description"></p></div>
+    <label class="field movie-field">재생 영상<select id="movie">${VIDEO_PRESETS.map(v => `<option value="${v.id}">${v.label}</option>`).join('')}</select></label>
+    <p class="movie-credit" id="movie-credit" hidden><a id="movie-credit-link" target="_blank" rel="noopener noreferrer"></a></p>
     <section id="partition-controls" class="partition-controls" hidden>
       <h3>부채형 차광막</h3><p>1–2층 / 2–3층 사이 두 단을 함께 전개합니다.<br>1층 100 · 2층 200 · 3층 그룹 300/400</p>
       <button id="partition-toggle" type="button">차광막 펼치기</button>
@@ -60,10 +63,10 @@ app.innerHTML = `
     <label class="field">스크린 콘텐츠<select id="content"><option value="video">Chromatic Flux · 360° 모션그래픽</option><option value="aurora">오로라 · 정지 화면</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 스크린 콘텐츠</option></select></label>
     <div class="playback-controls"><button id="video-playback" type="button">영상 일시정지</button><span id="video-status" role="status" aria-live="polite">20초 반복 · 무음</span></div>
     <div class="display-options"><label><input type="checkbox" id="audience">관객 채우기 · 내 자리 제외</label><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="event-stage">U2 2023 무대 표시</label></div>
-    <p class="sidebar-note"><span id="movie-description">회전하는 네온 궤도와 확산하는 링으로 구성한 360° 모션그래픽입니다.</span><br>20초 반복 · 무음 · 실제 공연 영상 아님<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
+    <p class="sidebar-note"><span id="movie-description">회전하는 네온 궤도와 확산하는 링으로 구성한 360° 모션그래픽입니다.</span><br>무음 반복 · 실제 공연 영상 아님<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
   </aside>
   <main class="scene-ui">
-    <div class="scene-caption"><span class="tag">RESEARCH 08</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
+    <div class="scene-caption"><span class="tag">RESEARCH 09</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
     <div class="scene-tools"><button id="reset" class="tool-button" title="시선 초기화">${icon('reset')}<span>시선 초기화</span></button><button id="screenshot" class="icon-button" title="현재 화면 이미지 저장" aria-label="현재 화면 이미지 저장">${icon('camera')}</button><button id="share" class="icon-button" title="현재 좌석 링크 복사" aria-label="현재 좌석 링크 복사">${icon('link')}</button></div>
     <div class="seat-card"><div class="seat-card-main"><span class="eyebrow" id="tier-name">TERRACE / 200 LEVEL</span><div><strong id="selected-section">206</strong><span id="selected-position">10행 · 13번</span></div><span class="seat-description" id="seat-description">중앙에서 무대와 화면을 함께 확인하세요.</span></div><div class="seat-stats"><div><span>전방 기준점까지</span><strong id="distance">—</strong></div><div><span>모델상 눈높이</span><strong id="height">—</strong></div><div><span>기준점 방향 차이</span><strong id="yaw">—</strong></div></div><div class="metrics-note">거리·각도는 추정 좌표의 계산값이며 실측값이 아닙니다.</div></div>
     <div class="bottom-line"><span class="interaction-hint" id="hint">마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화</span><button id="model-info">공개 자료 기반 재구성 ${icon('info', 13)}</button></div>
@@ -75,6 +78,7 @@ app.innerHTML = `
 
 const $ = id => document.getElementById(id);
 const query = new URLSearchParams(location.search);
+let selectedVideoId = getVideoPreset(query.get('video')).id;
 let currentWorld = getWorld(query.get('world'));
 let comparisonWorld = currentWorld.id === 'original' ? WORLDS[1] : currentWorld;
 const layoutCache = new Map();
@@ -98,7 +102,7 @@ const fillLight = new THREE.DirectionalLight('#798aa5', .55); fillLight.position
 const raycaster = new THREE.Raycaster();
 let drag = null, yaw = currentSeat.yaw, pitch = .06, framePose = null, pendingVrAlign = false, vrSupported = false;
 const controllers = [], xrButtons = [], xrWorldButtons = [];
-let xrPanel = null, xrSummary = null, xrPartitionButton = null, worldPage = Math.floor(WORLDS.indexOf(currentWorld) / 2), lastStick = 0, lastAimUpdate = -Infinity;
+let xrPanel = null, xrSummary = null, xrPartitionButton = null, xrVideoButton = null, worldPage = Math.floor(WORLDS.indexOf(currentWorld) / 2), lastStick = 0, lastAimUpdate = -Infinity;
 let comparisonWorker = null, comparisonRequest = 0, comparisonResult = null, comparisonError = false;
 try {
   comparisonWorker = new Worker(new URL('./comparison-worker.js', import.meta.url), { type: 'module' });
@@ -204,7 +208,7 @@ function updateInfo() {
   const isRear = currentSeat.tier === 100 && currentSeat.row >= 24;
   $('seat-description').textContent = isRear ? '하부 후방에서 상부 구조의 가림을 살펴보세요.' : currentSeat.tier === 400 ? '상부에서 화면과 객석의 관계를 확인하세요.' : Math.abs(currentSeat.theta) > .42 ? '측면에서 화면과 좌석 방향의 관계를 비교하세요.' : '중앙에서 화면과 객석의 관계를 확인하세요.';
   $('world').value = currentWorld.id; $('world-description').textContent = `${currentWorld.description} 일반 좌석 ${layout.seats.length.toLocaleString()}석.`;
-  const params = new URLSearchParams({ world: currentWorld.id, section: currentSeat.section, row: currentSeat.row, seat: currentSeat.number });
+  const params = new URLSearchParams({ world: currentWorld.id, section: currentSeat.section, row: currentSeat.row, seat: currentSeat.number, video: selectedVideoId });
   history.replaceState(null, '', `${location.pathname}?${params}`);
   populateInputs(); drawMap(); updatePartitionUI(); requestComparison();
 }
@@ -274,8 +278,43 @@ function updatePlaybackUI() {
   $('video-playback').disabled = !active;
   $('video-playback').textContent = playing ? '영상 일시정지' : '영상 재생';
   $('video-playback').setAttribute('aria-label', playing ? '스크린 영상 일시정지' : '스크린 영상 재생');
-  const messages = { loading: '영상을 불러오는 중…', buffering: '영상 버퍼링 중…', blocked: '재생 버튼을 눌러 시작하세요', error: state?.error, paused: '일시정지 · 20초 반복 · 무음', playing: '재생 중 · 20초 반복 · 무음' };
-  $('video-status').textContent = active ? messages[state?.status] || '20초 반복 · 무음' : '정지 화면';
+  const duration = Math.round(state?.duration || getVideoPreset(selectedVideoId).duration);
+  const messages = { loading: '영상을 불러오는 중…', buffering: '영상 버퍼링 중…', blocked: '재생 버튼을 눌러 시작하세요', error: state?.error, paused: `일시정지 · ${duration}초 반복 · 무음`, playing: `재생 중 · ${duration}초 반복 · 무음` };
+  $('video-status').textContent = active ? messages[state?.status] || '무음 반복 영상' : '정지 화면';
+}
+
+function updateVideoUI() {
+  const video = getVideoPreset(selectedVideoId);
+  $('movie').value = video.id;
+  $('content').options[0].textContent = `${video.shortLabel} · 동영상`;
+  $('movie-description').textContent = video.description;
+  $('movie-credit').hidden = !video.credit;
+  $('movie-credit-link').textContent = video.credit ? `영상 출처: ${video.credit} ↗` : '';
+  if (video.creditUrl) $('movie-credit-link').href = video.creditUrl;
+  if (xrVideoButton) {
+    const text = `다음 영상 · ${video.shortLabel}`;
+    if (xrVideoButton.userData.caption !== text) {
+      const ctx = xrVideoButton.userData.canvas.getContext('2d');
+      ctx.fillStyle = '#15292f'; ctx.fillRect(0,0,384,144); ctx.strokeStyle = '#698d86'; ctx.lineWidth = 3; ctx.strokeRect(3,3,378,138);
+      ctx.fillStyle = '#e3f0e9'; ctx.font = '500 37px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text,192,72,360);
+      xrVideoButton.material.map.needsUpdate = true; xrVideoButton.userData.caption = text;
+    }
+  }
+}
+
+function setVideoPreset(id) {
+  selectedVideoId = getVideoPreset(id).id;
+  model?.setVideo(selectedVideoId);
+  if (contentMode !== 'video') setContentMode('video');
+  else updatePlaybackUI();
+  updateVideoUI();
+  const params = new URLSearchParams(location.search); params.set('video',selectedVideoId);
+  history.replaceState(null,'',`${location.pathname}?${params}`);
+}
+
+function cycleVideoPreset() {
+  const index = VIDEO_PRESETS.findIndex(v => v.id === selectedVideoId);
+  setVideoPreset(VIDEO_PRESETS[(index+1)%VIDEO_PRESETS.length].id);
 }
 
 function setContentMode(mode) {
@@ -306,6 +345,7 @@ function createXrPanel() {
     ['VR 종료', () => renderer.xr.getSession()?.end()],
     ['관객 켜기/끄기', () => setAudienceEnabled(!audienceEnabled)],
     ['영상 재생/정지', toggleVideoPlayback],
+    ['다음 영상', cycleVideoPreset],
     ['차광막 접기/펼치기', togglePartitions],
   ];
   actions.forEach(([text, action], i) => {
@@ -318,6 +358,7 @@ function createXrPanel() {
     mesh.position.set((column - 1) * .46, Math.floor(i / 3) * -.19, 0); mesh.userData.action = action; mesh.renderOrder = XR_OVERLAY_ORDER;
     xrPanel.add(mesh); xrButtons.push(mesh);
     if (action === togglePartitions) { xrPartitionButton = mesh; mesh.userData.canvas = canvas; }
+    if (action === cycleVideoPreset) { xrVideoButton = mesh; mesh.userData.canvas = canvas; }
     if (i < 2) { mesh.userData.canvas = canvas; mesh.userData.slot = i; xrWorldButtons.push(mesh); }
   });
   const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 100;
@@ -336,7 +377,7 @@ function createXrPanel() {
   xrSummary = new THREE.Mesh(new THREE.PlaneGeometry(1.36, .204), overlayMaterial({ map: summaryTexture }));
   xrSummary.position.set(0, -Math.ceil(actions.length / 3) * .19 - .01, 0);
   xrSummary.renderOrder = XR_OVERLAY_ORDER; xrSummary.userData.canvas = summaryCanvas; xrPanel.add(xrSummary);
-  refreshWorldButtons(); updateXrSummary();
+  refreshWorldButtons(); updateXrSummary(); updateVideoUI();
 }
 
 function refreshWorldButtons() {
@@ -487,7 +528,7 @@ function initRenderer() {
   renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFramebufferScaleFactor(.9);
   $('viewport').append(renderer.domElement);
   orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping = true; orbit.minDistance = 12; orbit.maxDistance = 290; orbit.maxPolarAngle = Math.PI * .85; orbit.enabled = false;
-  model = new Auditorium(scene, layout, { screenMode: contentMode });
+  model = new Auditorium(scene, layout, { screenMode: contentMode, videoId: selectedVideoId });
   model.onPlaybackChange = updatePlaybackUI;
   model.select(currentSeat); setupXr(); setView('seat'); updateInfo(); updatePlaybackUI();
   renderer.domElement.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, moved: false }; renderer.domElement.setPointerCapture(e.pointerId); });
@@ -545,7 +586,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-08', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-09', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
 }
 
 function visitBand(index) {
@@ -567,8 +608,7 @@ function updatePartitionUI() {
   }
   $('partition-controls').hidden = !active; $('content').disabled = active;
   document.querySelector('.comparison-panel h3').textContent = active ? '차광막에 의한 구역 분리' : '같은 구역에서 전후 비교';
-  $('content').options[0].textContent = active ? 'Chromatic Flux · 3단 모션그래픽' : 'Chromatic Flux · 360° 모션그래픽';
-  $('movie-description').textContent = active ? '각 단을 가득 채우는 네온 궤도와 확산 링 모션그래픽입니다.' : '회전하는 네온 궤도와 확산하는 링으로 구성한 360° 모션그래픽입니다.';
+  updateVideoUI();
   document.querySelector('.compare-seats').hidden = active;
   document.querySelector('.comparison-note').hidden = active;
   if (!active) return;
@@ -590,6 +630,7 @@ $('partition-amount').addEventListener('change', requestComparison);
 document.querySelectorAll('[data-band-view]').forEach(button => button.addEventListener('click', () => visitBand(Number(button.dataset.bandView))));
 
 $('world').addEventListener('change', () => setWorld($('world').value));
+$('movie').addEventListener('change', () => setVideoPreset($('movie').value));
 for (const section of [209, 210]) $(`compare-${section}`).addEventListener('click', () => { setAudienceEnabled(true); setSeat(resolveSeat(layout, { section, row: currentSeat.row })); });
 $('section').addEventListener('change', () => setSeat(resolveSeat(layout, { section: $('section').value, row: currentSeat.row })));
 $('row').addEventListener('change', () => setSeat(resolveSeat(layout, { section: currentSeat.section, row: $('row').value, number: currentSeat.number })));
