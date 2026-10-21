@@ -11,11 +11,21 @@ export class FanPartitions extends THREE.Group {
       mesh.name = `seat-edge-blade-${panel.section}-${i}`; mesh.userData.level = panel.y; this.add(mesh);
       const ribs = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#9ba7a0' }));
       ribs.name = 'blade-edge'; ribs.userData.level = panel.y; this.add(ribs);
+      const skirtGeometry = new THREE.BufferGeometry();
+      skirtGeometry.setAttribute('position',new THREE.Float32BufferAttribute(panel.mountRing.flatMap(p=>[p.x,p.y,p.z]),3));
+      skirtGeometry.setIndex([0,1,2,0,2,3]); skirtGeometry.computeVertexNormals();
+      const skirt = new THREE.Mesh(skirtGeometry,mesh.material);
+      skirt.name = `closed-gallery-attachment-${i}`; this.add(skirt);
+      const infillGeometry = new THREE.BufferGeometry();
+      infillGeometry.setAttribute('position',new THREE.Float32BufferAttribute(panel.infillRing.flatMap(p=>[p.x,p.y,p.z]),3));
+      infillGeometry.setIndex([0,1,2,0,2,3]); infillGeometry.computeVertexNormals();
+      const infill = new THREE.Mesh(infillGeometry,mesh.material);
+      infill.name = `continuous-gallery-infill-${i}`; this.add(infill);
       const cassette = new THREE.Mesh(new THREE.BoxGeometry(panel.width, .10, .16), new THREE.MeshStandardMaterial({ color: '#9a8060', roughness: .65, metalness: .5 }));
       cassette.position.set((panel.a.x + panel.b.x) / 2 - (panel.normalA.x+panel.normalB.x)*.04, panel.y, (panel.a.z + panel.b.z) / 2 - (panel.normalA.z+panel.normalB.z)*.04);
       cassette.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0), new THREE.Vector3(panel.b.x-panel.a.x,panel.b.y-panel.a.y,panel.b.z-panel.a.z).normalize());
       cassette.name = `seat-edge-cassette-${panel.section}`; this.add(cassette);
-      return { mesh, ribs, level: panel.y, panel, cassette };
+      return { mesh, ribs, skirt, infill, level: panel.y, panel, cassette };
     });
     this.setAmount(0);
   }
@@ -23,8 +33,9 @@ export class FanPartitions extends THREE.Group {
   setAmount(amount) {
     this.amount = THREE.MathUtils.clamp(amount, 0, 1);
     const half = PARTITIONS.thickness / 2, panels = partitionPanels(Math.max(.0001, this.amount));
-    for (const [index, { mesh, ribs, level }] of this.membranes.entries()) {
-      mesh.visible = ribs.visible = this.amount > 0;
+    for (const [index, { mesh, ribs, skirt, infill, level }] of this.membranes.entries()) {
+      mesh.visible = ribs.visible = infill.visible = this.amount > 0;
+      skirt.visible = this.amount > 0 && (this.membranes[index].panel.a.mountY > level || this.membranes[index].panel.b.mountY > level);
       const ring = panels[index].ring;
       const positions = [], indices = [], lines = [];
       for (const p of ring) positions.push(p.x, p.y + half, p.z, p.x, p.y - half, p.z);

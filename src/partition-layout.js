@@ -21,10 +21,12 @@ export function partitionAmountForLength(metres) {
 export function partitionPanels(amount = 1, slopeDegrees = PARTITIONS.slopeDegrees) {
   const length = Math.max(0, Math.min(1, amount)) * PARTITIONS.maximumProjection;
   const rise = length * Math.tan(slopeDegrees * Math.PI / 180);
-  return footprint.segments.map(segment => ({ ...segment, length, ring: [
-    segment.a, segment.b,
-    { x: segment.b.x + segment.normalB.x * length, y: segment.b.y + rise, z: segment.b.z + segment.normalB.z * length },
-    { x: segment.a.x + segment.normalA.x * length, y: segment.a.y + rise, z: segment.a.z + segment.normalA.z * length },
+  return footprint.segments.map(segment => ({ ...segment, length,
+    infillRing: [segment.a,segment.b,{...segment.b,z:footprint.frontBaselineZ},{...segment.a,z:footprint.frontBaselineZ}],
+    mountRing: [segment.a,segment.b,{...segment.b,y:segment.b.mountY},{...segment.a,y:segment.a.mountY}], ring: [
+    {...segment.a,z:footprint.frontBaselineZ}, {...segment.b,z:footprint.frontBaselineZ},
+    { x: segment.b.x, y: segment.b.y + rise, z: footprint.frontBaselineZ - length },
+    { x: segment.a.x, y: segment.a.y + rise, z: footprint.frontBaselineZ - length },
   ] }));
 }
 
@@ -58,10 +60,12 @@ function intersectsTriangle(origin, target, a, b, c) {
 
 export function partitionBlocksSegment(origin, target, amount = 1, panels = partitionPanels(amount)) {
   if (amount <= 0) return false;
-  for (const { ring } of panels) {
-    const lo=Math.min(ring[0].y,ring[1].y,ring[2].y,ring[3].y), hi=Math.max(ring[0].y,ring[1].y,ring[2].y,ring[3].y);
-    if (Math.min(origin.y,target.y)>hi || Math.max(origin.y,target.y)<lo) continue;
-    if (intersectsTriangle(origin,target,ring[0],ring[1],ring[2]) || intersectsTriangle(origin,target,ring[0],ring[2],ring[3])) return true;
+  for (const panel of panels) {
+    for (const ring of [panel.ring,panel.infillRing,panel.mountRing]) {
+      const lo=Math.min(ring[0].y,ring[1].y,ring[2].y,ring[3].y), hi=Math.max(ring[0].y,ring[1].y,ring[2].y,ring[3].y);
+      if (Math.min(origin.y,target.y)>hi || Math.max(origin.y,target.y)<lo) continue;
+      if (intersectsTriangle(origin,target,ring[0],ring[1],ring[2]) || intersectsTriangle(origin,target,ring[0],ring[2],ring[3])) return true;
+    }
   }
   return false;
 }

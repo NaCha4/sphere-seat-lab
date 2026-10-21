@@ -135,17 +135,40 @@ test('blades stay rooted at gallery banks and allow the requested 100m manual re
     for(const [i,p] of own.entries()) {
       assert.deepEqual({x:p.a.x,z:p.a.z},{x:path[i].x,z:path[i].z});
       assert.deepEqual({x:p.b.x,z:p.b.z},{x:path[i+1].x,z:path[i+1].z});
-      assert.equal(p.y,rowGeometry(section.tier,section.range.first).floorY-.08);
-      for(const [root,tip] of [[p.a,p.ring[3]],[p.b,p.ring[2]]]) assert.ok(Math.abs(Math.hypot(tip.x-root.x,tip.z-root.z)-100)<1e-9);
+      assert.equal(p.y,footprint.lowerLineY);
+      assert.equal(p.a.mountY,rowGeometry(section.tier,section.range.first).floorY-.08);
+      for(const [root,tip] of [[p.ring[0],p.ring[3]],[p.ring[1],p.ring[2]]]) assert.ok(Math.abs(Math.hypot(tip.x-root.x,tip.z-root.z)-100)<1e-9);
       assert.ok(Math.abs(p.ring[3].y-p.a.y-100*Math.tan(Math.PI/12))<1e-9);
     }
   }
   assert.ok(panels.some(p=>p.ring.some(tip=>Math.hypot(tip.x,tip.z, p.y-BUILDING.centerY)>BUILDING.diameter/2)),'manual reach is not clipped at the building');
 });
 
+test('the lower datum removes the central notch and the raised gallery attachment is opaque', () => {
+  const fans=new FanPartitions(); fans.setAmount(.4); fans.updateMatrixWorld(true);
+  const panels=partitionPanels(.4);
+  assert.equal(footprint.lowerLineY,24.5);
+  for(const p of panels) {
+    assert.equal(p.a.y,24.5); assert.equal(p.b.y,24.5);
+    assert.equal(p.ring[2].y,p.ring[3].y);
+    assert.ok(Math.abs(p.ring[2].y-(24.5+40*Math.tan(Math.PI/12)))<1e-9);
+    assert.equal(p.ring[0].z,footprint.frontBaselineZ);
+    assert.equal(p.ring[1].z,footprint.frontBaselineZ);
+    assert.equal(p.ring[2].z,footprint.frontBaselineZ-40);
+    assert.equal(p.ring[3].z,footprint.frontBaselineZ-40);
+  }
+  const p=panels.find(p=>p.section===306&&!p.bridge);
+  const x=(p.a.x+p.b.x)/2,z=(p.a.z+p.b.z)/2,y=(p.a.y+p.a.mountY)/2;
+  const origin=new THREE.Vector3(x,y,z+2),target=new THREE.Vector3(x,y,z-2);
+  assert.equal(partitionBlocksSegment(origin,target,.4,panels),true);
+  const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,0,-1),.001,3.999);
+  assert.ok(ray.intersectObjects(fans.membranes.map(m=>m.skirt).filter(m=>m.visible)).length>0);
+  fans.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});
+});
+
 test('analytic interception agrees with physical blades, including the zero-length state', () => {
   const fans=new FanPartitions(), panel=partitionPanels(1).find(p=>p.section===304&&!p.bridge);
-  const px=(panel.a.x+panel.b.x)/2+(panel.normalA.x+panel.normalB.x)/2, pz=(panel.a.z+panel.b.z)/2+(panel.normalA.z+panel.normalB.z)/2;
+  const px=(panel.a.x+panel.b.x)/2, pz=footprint.frontBaselineZ-1;
   const origin=new THREE.Vector3(px,panel.y+1,pz), target=new THREE.Vector3(px,panel.y-1,pz);
   const fraction=1/PARTITIONS.maximumProjection;
   assert.ok(Math.abs(requiredPartitionAmount(origin,target)-fraction)<1e-8);
@@ -158,6 +181,17 @@ test('analytic interception agrees with physical blades, including the zero-leng
     assert.equal(partitionBlocksSegment(origin,target,amount),blocked);
   }
   assert.equal(requiredPartitionAmount({x:0,y:80,z:-1000},{x:0,y:0,z:-1000}),Infinity);
+  fans.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});
+});
+
+test('the seating-to-straight-edge infill also blocks rays behind the sliding sheet', () => {
+  const fans=new FanPartitions(); fans.setAmount(.2); fans.updateMatrixWorld(true);
+  const panels=partitionPanels(.2),p=panels.find(p=>p.section===306&&!p.bridge);
+  const x=(p.a.x+p.b.x)/2, z=(p.a.z+p.b.z+2*footprint.frontBaselineZ)/4;
+  const origin=new THREE.Vector3(x,p.a.y+2,z),target=new THREE.Vector3(x,p.a.y-2,z);
+  assert.equal(partitionBlocksSegment(origin,target,.2,panels),true);
+  const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),.001,3.999);
+  assert.ok(ray.intersectObjects(fans.membranes.map(m=>m.infill)).length>0);
   fans.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});
 });
 

@@ -11,8 +11,13 @@ for (const section of makeLayout('fan-v2').sections.filter(s => s.tier.id === 30
   const bounds = bankBounds(section, frontRow);
   const path = rowPath(section.tier, frontRow, bounds.start, bounds.end);
   const y = rowGeometry(section.tier, section.range.first).floorY - .08;
-  for (const point of path) stations.push({ x: point.x, y, z: point.z, section: section.id });
+  for (const point of path) stations.push({ x: point.x, y, mountY:y, z: point.z, section: section.id });
 }
+// Keep the whole lower edge level: the middle banks start three metres higher,
+// but their raised attachment must not create a notch in the shading surface.
+const lowerLineY=Math.min(...stations.map(p=>p.mountY));
+for (const p of stations) p.y=lowerLineY;
+const frontBaselineZ=Math.min(...stations.map(p=>p.z));
 const normals = stations.map(() => ({x:0,z:-1}));
 const segments = stations.slice(1).map((b,i) => {
   const a=stations[i], normalA=normals[i], normalB=normals[i+1];
@@ -20,7 +25,7 @@ const segments = stations.slice(1).map((b,i) => {
     y:(a.y+b.y)/2, width:Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z)};
 });
 const result = {
-  model: 'continuous-seat-edge-visor', mountingTier: 300, protectedTiers: [300, 400],
+  model: 'continuous-seat-edge-visor', mountingTier: 300, protectedTiers: [300, 400], lowerLineY, frontBaselineZ,
   maximumProjectionMetres, previousPanelArea: 4906.435263990791,
   area: segments.reduce((n, s) => n + s.width * maximumProjectionMetres, 0),
   segments,
