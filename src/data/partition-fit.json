@@ -3,7 +3,7 @@
   "required": 2.3283064365386963e-10,
   "projectionMetres": null,
   "crossingSamples": 1454,
-  "unshieldable": 732,
+  "unshieldable": 454,
   "seats": 3760,
   "viewField": {
     "verticalDegrees": 72,

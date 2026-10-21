@@ -16,16 +16,11 @@ export class FanPartitions extends THREE.Group {
       skirtGeometry.setIndex([0,1,2,0,2,3]); skirtGeometry.computeVertexNormals();
       const skirt = new THREE.Mesh(skirtGeometry,mesh.material);
       skirt.name = `closed-gallery-attachment-${i}`; this.add(skirt);
-      const infillGeometry = new THREE.BufferGeometry();
-      infillGeometry.setAttribute('position',new THREE.Float32BufferAttribute(panel.infillRing.flatMap(p=>[p.x,p.y,p.z]),3));
-      infillGeometry.setIndex([0,1,2,0,2,3]); infillGeometry.computeVertexNormals();
-      const infill = new THREE.Mesh(infillGeometry,mesh.material);
-      infill.name = `continuous-gallery-infill-${i}`; this.add(infill);
-      const cassette = new THREE.Mesh(new THREE.BoxGeometry(panel.width, .10, .16), new THREE.MeshStandardMaterial({ color: '#9a8060', roughness: .65, metalness: .5 }));
-      cassette.position.set((panel.a.x + panel.b.x) / 2 - (panel.normalA.x+panel.normalB.x)*.04, panel.y, (panel.a.z + panel.b.z) / 2 - (panel.normalA.z+panel.normalB.z)*.04);
-      cassette.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0), new THREE.Vector3(panel.b.x-panel.a.x,panel.b.y-panel.a.y,panel.b.z-panel.a.z).normalize());
+      const {rootA,rootB}=panel;
+      const cassette = new THREE.Mesh(new THREE.BoxGeometry(rootB.x-rootA.x, .10, .16), new THREE.MeshStandardMaterial({ color: '#9a8060', roughness: .65, metalness: .5 }));
+      cassette.position.set((rootA.x+rootB.x)/2, panel.y, rootA.z+.04);
       cassette.name = `seat-edge-cassette-${panel.section}`; this.add(cassette);
-      return { mesh, ribs, skirt, infill, level: panel.y, panel, cassette };
+      return { mesh, ribs, skirt, level: panel.y, panel, cassette };
     });
     this.setAmount(0);
   }
@@ -33,8 +28,8 @@ export class FanPartitions extends THREE.Group {
   setAmount(amount) {
     this.amount = THREE.MathUtils.clamp(amount, 0, 1);
     const half = PARTITIONS.thickness / 2, panels = partitionPanels(Math.max(.0001, this.amount));
-    for (const [index, { mesh, ribs, skirt, infill, level }] of this.membranes.entries()) {
-      mesh.visible = ribs.visible = infill.visible = this.amount > 0;
+    for (const [index, { mesh, ribs, skirt }] of this.membranes.entries()) {
+      mesh.visible = ribs.visible = this.amount > 0;
       skirt.visible = this.amount > 0 && (Math.abs(this.membranes[index].panel.a.mountY-this.membranes[index].panel.a.y)>1e-6 || Math.abs(this.membranes[index].panel.b.mountY-this.membranes[index].panel.b.y)>1e-6);
       const ring = panels[index].ring;
       const positions = [], indices = [], lines = [];

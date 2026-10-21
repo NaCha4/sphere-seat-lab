@@ -14,8 +14,8 @@ for (const section of makeLayout('fan-v2').sections.filter(s => s.tier.id === 30
   const y = rowGeometry(section.tier, section.range.first).floorY - .08;
   for (const point of path) stations.push({ x: point.x, y, mountY:y, z: point.z, section: section.id });
 }
-// Keep the whole lower edge level: the middle banks start three metres higher,
-// but their raised attachment must not create a notch in the shading surface.
+// Keep the gallery attachments on a shared rising plane. The innermost
+// station sets the straight root line used by the complete canopy blade.
 const lowerLineY=Math.min(...stations.map(p=>p.mountY));
 const rearBaselineZ=Math.max(...stations.map(p=>p.z));
 for (const p of stations) p.y=lowerLineY+(rearBaselineZ-p.z)*Math.tan(CANOPY_SLOPE_DEGREES*Math.PI/180);

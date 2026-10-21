@@ -4,7 +4,7 @@ import footprint from './data/partition-footprint.json' with { type: 'json' };
 // Concept dimensions, not structural/mechanism specifications.
 export const PARTITIONS = Object.freeze({
   // Screen division and mounting heights are independent.
-  levels: Object.freeze([...new Set(footprint.segments.map(s => s.y))]),
+  levels: Object.freeze([footprint.lowerLineY]),
   boundary: PARTITION_HEIGHT, thickness: .05, duration: 1.2, slopeDegrees: CANOPY_SLOPE_DEGREES,
   maximumProjection: footprint.maximumProjectionMetres,
 });
@@ -25,11 +25,13 @@ export function partitionPanels(amount = 1, slopeDegrees = PARTITIONS.slopeDegre
   const point=(source,z=source.z)=>({...source,z,y:footprint.lowerLineY+(footprint.rearBaselineZ-z)*Math.tan(slopeDegrees*Math.PI/180)});
   const tip=source=>point(source,footprint.frontBaselineZ-length*Math.sqrt(Math.max(0,1-(source.x/arcRadius)**2)));
   return footprint.segments.map(segment => {
-    const a=point(segment.a),b=point(segment.b), baseA=point(a,footprint.frontBaselineZ),baseB=point(b,footprint.frontBaselineZ);
-    return {...segment,a,b,length,y:(a.y+b.y)/2,
-      infillRing:[a,b,baseB,baseA],
+    const a=point(segment.a),b=point(segment.b);
+    // Begin at the innermost edge of the entire straightened area, not at
+    // each bank's curved front. The former infill is part of the same blade.
+    const rootA=point(a,footprint.rearBaselineZ),rootB=point(b,footprint.rearBaselineZ);
+    return {...segment,a,b,rootA,rootB,length,y:footprint.lowerLineY,
       mountRing:[a,b,{...b,y:b.mountY},{...a,y:a.mountY}],
-      ring:[baseA,baseB,tip(b),tip(a)],
+      ring:[rootA,rootB,tip(b),tip(a)],
     };
   });
 }
@@ -65,7 +67,7 @@ function intersectsTriangle(origin, target, a, b, c) {
 export function partitionBlocksSegment(origin, target, amount = 1, panels = partitionPanels(amount)) {
   if (amount <= 0) return false;
   for (const panel of panels) {
-    for (const ring of [panel.ring,panel.infillRing,panel.mountRing]) {
+    for (const ring of [panel.ring,panel.mountRing]) {
       const lo=Math.min(ring[0].y,ring[1].y,ring[2].y,ring[3].y), hi=Math.max(ring[0].y,ring[1].y,ring[2].y,ring[3].y);
       if (Math.min(origin.y,target.y)>hi || Math.max(origin.y,target.y)<lo) continue;
       if (intersectsTriangle(origin,target,ring[0],ring[1],ring[2]) || intersectsTriangle(origin,target,ring[0],ring[2],ring[3])) return true;

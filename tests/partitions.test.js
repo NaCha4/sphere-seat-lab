@@ -135,11 +135,12 @@ test('blades stay rooted at gallery banks and allow the requested 100m manual re
     for(const [i,p] of own.entries()) {
       assert.deepEqual({x:p.a.x,z:p.a.z},{x:path[i].x,z:path[i].z});
       assert.deepEqual({x:p.b.x,z:p.b.z},{x:path[i+1].x,z:path[i+1].z});
-      assert.equal(p.y,(p.a.y+p.b.y)/2);
+      assert.equal(p.y,footprint.lowerLineY);
       assert.equal(p.a.mountY,rowGeometry(section.tier,section.range.first).floorY-.08);
       for(const [root,tip] of [[p.ring[0],p.ring[3]],[p.ring[1],p.ring[2]]]) {
         const run=root.z-tip.z;
-        assert.ok(run>=100*Math.cos(50*Math.PI/180)-1e-6 && run<=100+1e-6);
+        const fixedRun=footprint.rearBaselineZ-footprint.frontBaselineZ;
+        assert.ok(run>=fixedRun+100*Math.cos(50*Math.PI/180)-1e-6 && run<=fixedRun+100+1e-6);
         assert.ok(Math.abs(tip.y-root.y-run*Math.tan(Math.PI/12))<1e-9);
       }
     }
@@ -147,14 +148,22 @@ test('blades stay rooted at gallery banks and allow the requested 100m manual re
   assert.ok(panels.some(p=>p.ring.some(tip=>Math.hypot(tip.x,tip.z, p.y-BUILDING.centerY)>BUILDING.diameter/2)),'manual reach is not clipped at the building');
 });
 
-test('the rounded tip and gallery infill stay on one rising plane without a flat lead-in', () => {
+test('the complete canopy slopes from the innermost straight root through the former infill', () => {
   const fans=new FanPartitions(); fans.setAmount(.4); fans.updateMatrixWorld(true);
   const panels=partitionPanels(.4);
   assert.equal(footprint.lowerLineY,24.5);
   for(const p of panels) {
-    for(const point of [...p.ring,...p.infillRing]) assert.ok(Math.abs(point.y-(24.5+(footprint.rearBaselineZ-point.z)*Math.tan(Math.PI/12)))<1e-9);
-    assert.equal(p.ring[0].z,footprint.frontBaselineZ);
-    assert.equal(p.ring[1].z,footprint.frontBaselineZ);
+    for(const point of p.ring) assert.ok(Math.abs(point.y-(24.5+(footprint.rearBaselineZ-point.z)*Math.tan(Math.PI/12)))<1e-9);
+    for(const root of p.ring.slice(0,2)) {
+      assert.equal(root.z,footprint.rearBaselineZ);
+      assert.equal(root.y,24.5);
+    }
+    assert.deepEqual(p.ring.slice(0,2),[p.rootA,p.rootB]);
+  }
+  assert.deepEqual(fans.getState().levels,[24.5]);
+  for(const {cassette} of fans.membranes) {
+    assert.equal(cassette.position.y,24.5);
+    assert.equal(cassette.position.z,footprint.rearBaselineZ+.04);
   }
   const tips=panels.flatMap(p=>p.ring.slice(2));
   const middle=tips.reduce((a,b)=>Math.abs(a.x)<Math.abs(b.x)?a:b),edge=tips[0];
@@ -187,15 +196,21 @@ test('analytic interception agrees with physical blades, including the zero-leng
   fans.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});
 });
 
-test('the seating-to-straight-edge infill also blocks rays behind the sliding sheet', () => {
+test('the single blade covers the innermost former flat area with no separate infill', () => {
   const fans=new FanPartitions(); fans.setAmount(.2); fans.updateMatrixWorld(true);
-  const panels=partitionPanels(.2),p=panels.find(p=>p.section===306&&!p.bridge);
-  const x=(p.a.x+p.b.x)/2, z=(p.a.z+p.b.z+2*footprint.frontBaselineZ)/4;
-  const y=footprint.lowerLineY+(footprint.rearBaselineZ-z)*Math.tan(Math.PI/12);
-  const origin=new THREE.Vector3(x,y+2,z),target=new THREE.Vector3(x,y-2,z);
-  assert.equal(partitionBlocksSegment(origin,target,.2,panels),true);
-  const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),.001,3.999);
-  assert.ok(ray.intersectObjects(fans.membranes.map(m=>m.infill)).length>0);
+  const panels=partitionPanels(.2),p=panels.find(p=>p.section===302&&!p.bridge);
+  assert.ok(fans.membranes.every(m=>!m.infill));
+  assert.ok(footprint.rearBaselineZ-.1>Math.max(p.a.z,p.b.z),'sample lies behind the old curved attachment');
+  // Check both sides of the old curved root, including the previously
+  // uncovered strip behind it, using the actual rendered closed solid.
+  const x=(p.a.x+p.b.x)/2;
+  for(const z of [footprint.rearBaselineZ-.1,(p.a.z+p.b.z+2*footprint.frontBaselineZ)/4]) {
+    const y=footprint.lowerLineY+(footprint.rearBaselineZ-z)*Math.tan(Math.PI/12);
+    const origin=new THREE.Vector3(x,y+2,z),target=new THREE.Vector3(x,y-2,z);
+    assert.equal(partitionBlocksSegment(origin,target,.2,panels),true);
+    const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),.001,3.999);
+    assert.ok(ray.intersectObjects(fans.membranes.map(m=>m.mesh)).length>0);
+  }
   fans.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});
 });
 
