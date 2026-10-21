@@ -15,3 +15,14 @@ The player is muted, inline and looping. Desktop and VR controls provide play/pa
 `public/media/sphere-aurora-poster.jpg` is the first frame. Optional static aurora, Earth, stars and UV grid remain available. The previous AI-generated Chiikawa image remains only in Git history.
 
 Validation: all 480 frames decoded without errors; frames at 0, 5, 10 and 19.95 seconds inspected; mapping, transport, blocked-autoplay recovery, disposal and material handover covered by automated tests. Browser/Quest playback still requires device verification.
+
+
+## Wide three-band movie — 2026-10-21
+
+V2 uses `public/media/sphere-wide-bands.mp4`: a 3072×1450 atlas of three synchronized, self-authored panoramic aurora strips. Individual strip sizes are 3072×314, 3072×292 and 3072×844. Duration is 20 seconds at 24 fps, H.264/yuv420p, silent and looping. The three compositions are generated for their respective aspect ratios; the former central 2:1 window and its black margins are removed.
+
+`node scripts/generate-band-layout.js` derives the atlas layout from the current band geometry. `python scripts/generate-band-video.py --ffmpeg /path/to/ffmpeg` generates the movie and poster, plus standalone strip videos in `public/media/`. `src/data/band-video.json` records the layout. `band-screen.js` maps each height's complete horizontal arc to the correct strip, with half-texel insets to avoid neighbouring-strip bleed.
+
+The upright aurora video remains the source for the baseline and V1. Source changes reuse one video element and preserve play/pause intent and the timeline after metadata loads. No external footage or music is used.
+
+Validation: all four new videos decode through 480 frames without errors. Desktop Chrome playback and full-width mapping were checked locally; Quest playback remains unverified.

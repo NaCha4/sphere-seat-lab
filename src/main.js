@@ -4,6 +4,7 @@ import { Auditorium } from './auditorium.js';
 import { BUILDING, TIERS, PRESETS, rowPoint, rowPath, sectionAngles, makeLayout, resolveSeat, seatMetrics } from './layout.js';
 import { WORLDS, getWorld } from './worlds.js';
 import { bandForTier } from './partition-layout.js';
+import { seatEye } from './seating-pose.js';
 import { SOURCES, CONFIDENCE } from './evidence.js';
 import { XR_OVERLAY_ORDER, overlayMaterial, pickTarget, createAimPointer, isMenuButtonPressed, pollMenuToggle } from './interaction.js';
 
@@ -29,7 +30,7 @@ app.innerHTML = `
   <div id="veil"></div>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Sphere Seat Lab 홈">${icon('sphere', 31)}<span>SPHERE<span class="brand-sub">SEAT LAB</span></span></a>
-    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 06</span><h1>좌석에서 만나는 스피어</h1></div>
+    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 07</span><h1>좌석에서 만나는 스피어</h1></div>
     <div class="header-actions"><button class="icon-button" id="research" aria-label="모델 근거와 출처">${icon('info')}</button><button class="vr-button" id="vr">${icon('vr', 20)}<span>VR 시작</span></button></div>
   </header>
   <aside class="sidebar" aria-label="좌석과 보기 설정">
@@ -41,7 +42,7 @@ app.innerHTML = `
       <label class="partition-range">전개량 <input id="partition-amount" type="range" min="0" max="100" value="0"><output id="partition-value">0%</output></label>
       <p id="partition-status" role="status"></p>
       <div class="partition-views"><button data-band-view="0">1층 보기</button><button data-band-view="1">2층 보기</button><button data-band-view="2">3층 보기</button></div>
-      <p>접힌 상태에서 시작합니다. 펼치면 다른 높이의 영상이 실제 판에 가려집니다. 영상 비율을 유지하는 검은 여백이 있습니다. 실물 규모·지지·접힘 기구는 검증 전입니다.</p>
+      <p>각 단의 곡면 폭에 맞춘 가로 영상이 옆면까지 채워집니다. 펼치면 다른 높이의 영상이 실제 판에 가려집니다. 실물 규모·지지·접힘 기구는 검증 전입니다.</p>
     </section>
     <div class="view-tabs" role="group" aria-label="보기 방식"><button id="seat-view" class="active">${icon('eye', 16)}좌석 시점</button><button id="overview">${icon('cube', 16)}전체 구조</button></div>
     <div class="map-wrap"><svg id="seat-map" viewBox="0 0 300 218" role="img" aria-label="좌석 구역 지도"></svg><span class="map-caption">구역을 눌러 이동하세요</span></div>
@@ -51,7 +52,7 @@ app.innerHTML = `
       <div class="row-controls"><label class="field">행<select id="row" aria-label="행"></select></label><label class="field">행 내 위치<select id="number" aria-label="행 내 가상 위치"></select></label></div>
     </div>
     <button class="primary-button" id="go-seat">이 좌석에서 보기 ${icon('arrow')}</button>
-    <section class="comparison-panel" aria-label="원본과 변형안 시야 비교"><h3>같은 좌석에서 전후 비교</h3><div class="compare-seats"><button id="compare-209">209 구역</button><button id="compare-210">210 구역</button></div><p id="comparison-caption"></p><div id="comparison-result" role="status" aria-live="polite">계산 준비 중…</div><p class="comparison-note">방향 차이: 좌석 정면과 전방 기준점의 차이.<br>머리 가림: 전면 LED 표본 광선 중 머리가 가린 수.<br>같은 눈높이 1.18m · 같은 관객 모형 · 내 자리 제외.<br>몸통·난간·구조물은 수치에서 제외합니다.</p></section>
+    <section class="comparison-panel" aria-label="원본과 변형안 시야 비교"><h3>같은 구역에서 전후 비교</h3><div class="compare-seats"><button id="compare-209">209 구역</button><button id="compare-210">210 구역</button></div><p id="comparison-caption"></p><div id="comparison-result" role="status" aria-live="polite">계산 준비 중…</div><p class="comparison-note">방향 차이: 좌석 정면과 전방 기준점의 차이.<br>머리 가림: 전면 LED 표본 광선 중 머리가 가린 수.<br>좌석별 관람 자세 반영 · 내 자리 제외.<br>몸통·난간·구조물은 수치에서 제외합니다.</p></section>
     <div class="section-divider"></div>
     <div class="preset-heading"><h3>다른 시야 살펴보기</h3><span>QUICK VIEWS</span></div>
     <div class="presets">${PRESETS.map((p, i) => `<button data-preset="${i}"><span>${p.label}</span><small>${p.section} · ${p.row}행</small></button>`).join('')}</div>
@@ -59,10 +60,10 @@ app.innerHTML = `
     <label class="field">스크린 콘텐츠<select id="content"><option value="video">오로라 궤도 · 360° 영상</option><option value="aurora">오로라 · 정지 화면</option><option value="earth">지구 · 공간감 보기</option><option value="grid">격자 · 화면 범위 보기</option><option value="stars">별빛 · 스크린 콘텐츠</option></select></label>
     <div class="playback-controls"><button id="video-playback" type="button">영상 일시정지</button><span id="video-status" role="status" aria-live="polite">20초 반복 · 무음</span></div>
     <div class="display-options"><label><input type="checkbox" id="audience">관객 채우기 · 내 자리 제외</label><label><input type="checkbox" id="labels">구역 번호 표시</label><label><input type="checkbox" id="event-stage">U2 2023 무대 표시</label></div>
-    <p class="sidebar-note">구면에 맞춰 제작한 360° 오로라 영상입니다.<br>20초 반복 · 무음 · 실제 공연 영상 아님<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
+    <p class="sidebar-note"><span id="movie-description">구면에 맞춰 제작한 360° 오로라 영상입니다.</span><br>20초 반복 · 무음 · 실제 공연 영상 아님<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
   </aside>
   <main class="scene-ui">
-    <div class="scene-caption"><span class="tag">RESEARCH 06</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
+    <div class="scene-caption"><span class="tag">RESEARCH 07</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
     <div class="scene-tools"><button id="reset" class="tool-button" title="시선 초기화">${icon('reset')}<span>시선 초기화</span></button><button id="screenshot" class="icon-button" title="현재 화면 이미지 저장" aria-label="현재 화면 이미지 저장">${icon('camera')}</button><button id="share" class="icon-button" title="현재 좌석 링크 복사" aria-label="현재 좌석 링크 복사">${icon('link')}</button></div>
     <div class="seat-card"><div class="seat-card-main"><span class="eyebrow" id="tier-name">TERRACE / 200 LEVEL</span><div><strong id="selected-section">206</strong><span id="selected-position">10행 · 13번</span></div><span class="seat-description" id="seat-description">중앙에서 무대와 화면을 함께 확인하세요.</span></div><div class="seat-stats"><div><span>전방 기준점까지</span><strong id="distance">—</strong></div><div><span>모델상 눈높이</span><strong id="height">—</strong></div><div><span>기준점 방향 차이</span><strong id="yaw">—</strong></div></div><div class="metrics-note">거리·각도는 추정 좌표의 계산값이며 실측값이 아닙니다.</div></div>
     <div class="bottom-line"><span class="interaction-hint" id="hint">마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화</span><button id="model-info">공개 자료 기반 재구성 ${icon('info', 13)}</button></div>
@@ -121,7 +122,7 @@ function requestComparison() {
   comparisonError = !comparisonWorker;
   renderComparison(!comparisonWorker); updateXrSummary();
   comparisonWorker?.postMessage({ request: ++comparisonRequest, worldId: comparisonWorld.id,
-    selection: { section: currentSeat.section, row: currentSeat.row, number: currentSeat.number }, audience: audienceEnabled, partitionAmount: model?.getPartitionState()?.amount ?? 0 });
+    selection: { section: currentSeat.section, row: currentSeat.row, number: currentSeat.number, worldId: currentWorld.id }, audience: audienceEnabled, partitionAmount: model?.getPartitionState()?.amount ?? 0 });
 }
 
 function renderComparison(error = false) {
@@ -133,7 +134,7 @@ function renderComparison(error = false) {
   }
   if (!comparisonResult) { $('comparison-result').textContent = error ? '이 브라우저에서 비교 계산을 실행하지 못했습니다.' : '같은 조건으로 계산 중…'; return; }
   const { original, variant } = comparisonResult;
-  $('comparison-result').innerHTML = `<table><thead><tr><th>모델 추정값</th><th>원본</th><th>${comparisonWorld.shortLabel}</th></tr></thead><tbody><tr><th>방향 차이</th><td>${original.turnDegrees.toFixed(1)}°</td><td>${variant.turnDegrees.toFixed(1)}°</td></tr><tr><th>머리 가림</th><td>${original.blocked}/${original.samples}</td><td>${variant.blocked}/${variant.samples}</td></tr></tbody></table><p>${audienceEnabled ? '머리 가림은 작을수록 적습니다. 실제 가림률·안전성 검증값이 아닙니다.' : '관객을 켜면 같은 인체 모형으로 머리 가림을 비교합니다.'}</p>`;
+  $('comparison-result').innerHTML = `<table><thead><tr><th>모델 추정값</th><th>원본</th><th>${comparisonWorld.shortLabel}</th></tr></thead><tbody><tr><th>일반 좌석 수</th><td>${original.seatCount.toLocaleString()}</td><td>${variant.seatCount.toLocaleString()}</td></tr><tr><th>방향 차이</th><td>${original.turnDegrees.toFixed(1)}°</td><td>${variant.turnDegrees.toFixed(1)}°</td></tr><tr><th>머리 가림</th><td>${original.blocked}/${original.samples}</td><td>${variant.blocked}/${variant.samples}</td></tr></tbody></table><p>같은 구역의 가까운 행·상대 위치를 비교합니다. ${original.row}행 ${original.number}번째 ↔ ${variant.row}행 ${variant.number}번째.<br>${audienceEnabled ? '머리 가림은 표본 광선 수이며 실제 가림률·안전성 검증값이 아닙니다.' : '관객을 켜면 자세와 좌석 수를 반영해 머리 가림을 비교합니다.'}</p>`;
 }
 
 function setWorld(id) {
@@ -141,16 +142,19 @@ function setWorld(id) {
   if (next.id === currentWorld.id) return;
   clearAimPreview();
   const selection = { section: currentSeat.section, row: currentSeat.row, number: currentSeat.number };
+  const oldRow = layout.bySection.get(currentSeat.section).rows.get(currentSeat.row);
+  const fraction = (currentSeat.number-.5)/oldRow.length;
   const nextLayout = worldLayout(next);
   model?.setLayout(nextLayout);
   currentWorld = next; layout = nextLayout;
   if (next.id !== 'original') comparisonWorld = next;
   else if (comparisonWorld.partitions) comparisonWorld = WORLDS[1];
   if (next.partitions) { contentMode = 'video'; $('content').value = 'video'; }
-  setSeat(resolveSeat(layout, selection), false);
+  const near = resolveSeat(layout, selection), newRow = layout.bySection.get(near.section).rows.get(near.row);
+  setSeat(resolveSeat(layout, { section: near.section, row: near.row, number: Math.floor(fraction*newRow.length)+1 }), false);
   model?.setOverview(renderer?.xr.isPresenting ? false : view === 'overview', labelsVisible);
   worldPage = Math.floor(WORLDS.indexOf(next) / 2); refreshWorldButtons(); updatePartitionUI(); updatePlaybackUI();
-  toast(`${next.label} · 같은 좌석으로 전환했습니다.`);
+  toast(`${next.label} · 같은 구역의 대응 위치로 전환했습니다.`);
 }
 
 
@@ -199,7 +203,7 @@ function updateInfo() {
   $('yaw').innerHTML = `${Math.abs(metrics.yawDifference * 180 / Math.PI).toFixed(1)}<small>°</small>`;
   const isRear = currentSeat.tier === 100 && currentSeat.row >= 24;
   $('seat-description').textContent = isRear ? '하부 후방에서 상부 구조의 가림을 살펴보세요.' : currentSeat.tier === 400 ? '상부에서 화면과 객석의 관계를 확인하세요.' : Math.abs(currentSeat.theta) > .42 ? '측면에서 화면과 좌석 방향의 관계를 비교하세요.' : '중앙에서 화면과 객석의 관계를 확인하세요.';
-  $('world').value = currentWorld.id; $('world-description').textContent = currentWorld.description;
+  $('world').value = currentWorld.id; $('world-description').textContent = `${currentWorld.description} 일반 좌석 ${layout.seats.length.toLocaleString()}석.`;
   const params = new URLSearchParams({ world: currentWorld.id, section: currentSeat.section, row: currentSeat.row, seat: currentSeat.number });
   history.replaceState(null, '', `${location.pathname}?${params}`);
   populateInputs(); drawMap(); updatePartitionUI(); requestComparison();
@@ -211,7 +215,8 @@ function alignVr() {
   const headEuler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w), 'YXZ');
   rig.rotation.set(0, currentSeat.yaw - headEuler.y, 0);
   const offset = new THREE.Vector3(p.x, p.y, p.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), rig.rotation.y);
-  rig.position.set(currentSeat.x, currentSeat.y + BUILDING.eyeHeight, currentSeat.z).sub(offset);
+  const eye = seatEye(currentSeat, BUILDING.eyeHeight);
+  rig.position.set(eye.x, eye.y, eye.z).sub(offset);
   pendingVrAlign = false; placeXrPanel();
 }
 
@@ -228,8 +233,9 @@ function resetView() {
   if (renderer.xr.isPresenting) { alignVr(); return; }
   rig.position.set(0, 0, 0); rig.rotation.set(0, 0, 0);
   if (view === 'seat') {
-    camera.position.set(currentSeat.x, currentSeat.y + BUILDING.eyeHeight, currentSeat.z);
-    yaw = currentSeat.yaw; pitch = .06; camera.rotation.set(pitch, yaw, 0, 'YXZ'); camera.fov = 72;
+    const eye = seatEye(currentSeat, BUILDING.eyeHeight);
+    camera.position.set(eye.x, eye.y, eye.z);
+    yaw = currentSeat.yaw; pitch = currentSeat.viewPitch ?? .06; camera.rotation.set(pitch, yaw, 0, 'YXZ'); camera.fov = 72;
   } else {
     camera.position.set(108, 111, 123); orbit.target.set(0, 26, -5); orbit.update(); camera.fov = 55;
   }
@@ -252,7 +258,9 @@ function setView(next) {
 function moveRelative({ section = 0, row = 0, number = 0 } = {}) {
   const tier = TIERS.find(t => t.id === currentSeat.tier);
   const nextSection = THREE.MathUtils.clamp(currentSeat.section + section, tier.first, tier.last);
-  setSeat(resolveSeat(layout, { section: nextSection, row: currentSeat.row + row, number: section ? null : currentSeat.number + number }));
+  const rows = [...layout.bySection.get(nextSection).rows.keys()];
+  const index = rows.indexOf(resolveSeat(layout,{section:nextSection,row:currentSeat.row}).row);
+  setSeat(resolveSeat(layout, { section: nextSection, row: rows[Math.max(0,Math.min(rows.length-1,index+row))], number: section ? null : currentSeat.number + number }));
 }
 
 function setAudienceEnabled(enabled) {
@@ -537,7 +545,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-06', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-07', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
 }
 
 function visitBand(index) {
@@ -558,7 +566,9 @@ function updatePartitionUI() {
     }
   }
   $('partition-controls').hidden = !active; $('content').disabled = active;
-  document.querySelector('.comparison-panel h3').textContent = active ? '차광막에 의한 구역 분리' : '같은 좌석에서 전후 비교';
+  document.querySelector('.comparison-panel h3').textContent = active ? '차광막에 의한 구역 분리' : '같은 구역에서 전후 비교';
+  $('content').options[0].textContent = active ? '와이드 오로라 · 3단 맞춤 영상' : '오로라 궤도 · 360° 영상';
+  $('movie-description').textContent = active ? '각 단의 곡면을 가득 채우는 와이드 오로라 영상입니다.' : '구면에 맞춰 제작한 360° 오로라 영상입니다.';
   document.querySelector('.compare-seats').hidden = active;
   document.querySelector('.comparison-note').hidden = active;
   if (!active) return;

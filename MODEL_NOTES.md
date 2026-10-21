@@ -1,3 +1,7 @@
+# 현재 변경 — Research 07 · 2026-10-21
+
+V1을 리클라이너 3,330석 배치로 수정하고, V2에 각 단의 곡면 전체를 채우는 와이드 영상을 적용했다. 현재 치수·비교 방식은 [VARIATIONS.md](VARIATIONS.md), 영상 제작 정보는 [ASSET_NOTES.md](ASSET_NOTES.md)를 참조한다. 아래 Research 04–06 기록의 V1 좌석 수 유지와 V2 중앙 직사각형 영상 설명은 변경 전 상태다.
+
 # 모델 정의 — Research 04
 
 2023 U2 제작진의 공개 작업 도면을 반영한 버전이다. **준공 CAD/BIM 복제본이 아니다.** 상세 근거는 [RECONSTRUCTION_AUDIT.md](RECONSTRUCTION_AUDIT.md)에 기록한다.

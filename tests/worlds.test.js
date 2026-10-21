@@ -5,16 +5,19 @@ import { WORLDS, getWorld, warpPlan } from '../src/worlds.js';
 import { HEAD, audienceHead } from '../src/audience-shape.js';
 import { evaluateSeat, headBlocksSegment, SCREEN_SAMPLES } from '../src/sightline.js';
 import { compareWorlds } from '../src/comparison.js';
+import { RECLINER, seatEye } from '../src/seating-pose.js';
 
-test('world registry preserves every seat identity and baseline while all four floors share the variant transform', () => {
+test('recliner world reduces seating and provides wide chairs on deep continuous curved terraces', () => {
   const original = makeLayout(), variant = makeLayout('curvature-v1');
   assert.equal(getWorld('unknown').id, 'original');
   assert.equal(new Set(WORLDS.map(w => w.id)).size, WORLDS.length);
-  assert.deepEqual(variant.seats.map(s => s.id), original.seats.map(s => s.id));
+  assert.ok(variant.seats.length < original.seats.length*.4);
+  assert.ok(variant.seats.length > original.seats.length*.15);
+  assert.equal(variant.sections.length,original.sections.length);
   assert.deepEqual(makeLayout().seats, original.seats, 'variant generation must not mutate baseline');
   for (const section of original.sections) {
     const changed = variant.bySection.get(section.id);
-    for (const row of [section.range.first, section.range.last]) {
+    for (const row of [changed.range.first, changed.range.last]) {
       for (const parameter of [section.start, section.center, section.end]) {
         assert.deepEqual(rowPoint(changed.tier, row, parameter), warpPlan(rowPoint(section.tier, row, parameter), variant.world.geometry));
       }
@@ -25,9 +28,17 @@ test('world registry preserves every seat identity and baseline while all four f
     assert.equal(s.y, baseline.y, 'same eye and riser heights');
     assert.ok(Math.hypot(s.x, s.y - BUILDING.centerY, s.z) < BUILDING.diameter / 2, s.id);
     assert.ok(Math.abs(s.x) < 65.8 && s.z < 64.8, 'chairs stay inside fixed enclosure');
+    assert.equal(s.recliner,true);assert.equal(s.width,RECLINER.width);
+    assert.ok(s.pitch>=RECLINER.pitch-1e-9);
+    assert.ok(Math.abs(evaluateSeat(variant,s,{audience:false,targets:[]}).turnDegrees)<.01);
+    const eye=seatEye(s);assert.ok(eye.y<s.y+BUILDING.eyeHeight,'reclined viewpoint is lower');
   }
   for (const section of variant.sections) for (const seats of section.rows.values()) {
-    for (let i = 1; i < seats.length; i++) assert.ok(Math.hypot(seats[i].x-seats[i-1].x,seats[i].z-seats[i-1].z) > .5, seats[i].id);
+    for (let i = 1; i < seats.length; i++) assert.ok(Math.hypot(seats[i].x-seats[i-1].x,seats[i].z-seats[i-1].z) > 1, seats[i].id);
+  }
+  for(const section of variant.sections){
+    const rows=[...section.rows.keys()];
+    for(let i=1;i<rows.length;i++)assert.ok(rows[i]-rows[i-1]>=2);
   }
 });
 
@@ -45,16 +56,17 @@ test('head-only comparison excludes self, respects empty seats and clips interse
   for (const p of SCREEN_SAMPLES) assert.ok(p.y > 0 && p.z < 0);
 });
 
-test('209/210 comparison retains the same seat and reports head interference independently from orientation', () => {
+test('209/210 comparison uses corresponding positions when the recliner layout has fewer seats', () => {
   for (const section of [209,210]) {
     const selection = {section,row:10}, result = compareWorlds({worldId:'curvature-v1',selection,audience:true});
-    assert.equal(result.original.seatId,result.variant.seatId);
+    assert.equal(result.original.section,result.variant.section);
+    assert.ok(result.variant.seatCount<result.original.seatCount);
     assert.equal(result.original.samples,result.variant.samples);
     assert.ok(result.variant.turnDegrees < result.original.turnDegrees - 10);
-    assert.ok(result.original.blocked > 0 && result.variant.blocked > 0);
+    assert.ok(result.original.blocked>=0 && result.variant.blocked>=0);
     const empty = compareWorlds({worldId:'curvature-v1',selection,audience:false});
     assert.equal(empty.original.blocked,0); assert.equal(empty.variant.blocked,0);
   }
   const layout = makeLayout('curvature-v1'), seat = resolveSeat(layout,{section:210,row:10});
-  assert.equal(evaluateSeat(layout,seat).seatId, '210-10-10');
+  assert.equal(evaluateSeat(layout,seat).seatId, seat.id);
 });

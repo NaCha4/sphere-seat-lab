@@ -15,9 +15,17 @@ function evaluation(worldId, selection, audience) {
   const key = `${world.id}/${seat.id}/${audience}`;
   if (!results.has(key)) {
     if (results.size >= 256) results.delete(results.keys().next().value);
-    results.set(key, evaluateSeat(layout, seat, { audience }));
+    results.set(key, { ...evaluateSeat(layout, seat, { audience }), seatCount: layout.seats.length, section: seat.section, row: seat.row, number: seat.number });
   }
   return results.get(key);
+}
+
+function correspondingSelection(worldId, selection) {
+  const source = makeLayout(selection.worldId ?? 'original');
+  const start = resolveSeat(source, selection), sourceRow = source.bySection.get(start.section).rows.get(start.row);
+  const target = makeLayout(worldId), near = resolveSeat(target, { section: start.section, row: start.row });
+  const targetRow = target.bySection.get(near.section).rows.get(near.row);
+  return { section: near.section, row: near.row, number: Math.min(targetRow.length, Math.floor((start.number-.5)/sourceRow.length*targetRow.length)+1) };
 }
 
 export function compareWorlds({ worldId, selection, audience, partitionAmount = 0 }) {
@@ -27,7 +35,7 @@ export function compareWorlds({ worldId, selection, audience, partitionAmount = 
     return { partition: evaluatePartitions(seat, partitionAmount) };
   }
   return {
-    original: evaluation('original', selection, audience),
-    variant: evaluation(worldId, selection, audience),
+    original: evaluation('original', correspondingSelection('original',selection), audience),
+    variant: evaluation(worldId, correspondingSelection(worldId,selection), audience),
   };
 }

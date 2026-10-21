@@ -5,6 +5,7 @@ import { BUILDING, makeLayout, rowGeometry, rowPoint } from '../src/layout.js';
 import { bankBounds, bankBottom, bankPoint, createBankGeometry, createAisleGeometry } from '../src/bowl-geometry.js';
 
 import { WORLDS } from '../src/worlds.js';
+import { seatEye } from '../src/seating-pose.js';
 
 for (const world of WORLDS) {
 const layout = makeLayout(world.id);
@@ -100,7 +101,7 @@ test(`${world.id}: no selectable seat places the eyes or top of the head inside 
   const point = new THREE.Vector3(), ray = new THREE.Raycaster();
   ray.ray.direction.set(0,1,0);
   for (const seat of layout.seats) for (const height of [BUILDING.eyeHeight,BUILDING.eyeHeight+.2]) {
-    point.set(seat.x,seat.y+height,seat.z);
+    const eye=seatEye(seat,height);point.set(eye.x,eye.y,eye.z);
     for (const bank of meshes) {
       if (bank.section.id === seat.section || !bank.geometry.boundingBox.containsPoint(point)) continue;
       ray.ray.origin.copy(point);

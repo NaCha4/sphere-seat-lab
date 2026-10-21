@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { BUILDING, makeLayout, resolveSeat } from '../src/layout.js';
-import { PARTITIONS, SCREEN_BANDS, bandForTier, bandFrame, bandVideoUV, partitionBlocksSegment } from '../src/partition-layout.js';
+import { PARTITIONS, SCREEN_BANDS, bandForTier, bandFrame, bandVideoUV, bandSurfacePoint, partitionBlocksSegment } from '../src/partition-layout.js';
+import atlas from '../src/data/band-video.json' with { type: 'json' };
+import { createScreenGeometry } from '../src/screen-geometry.js';
 import { FanPartitions } from '../src/fan-partitions.js';
 import { bandTargets, evaluatePartitions } from '../src/partition-sightline.js';
 import { createBandScreenMaterial } from '../src/band-screen.js';
@@ -22,23 +24,37 @@ test('the third world retains baseline seating and separates all seated eye enve
   }
 });
 
-test('three non-overlapping screen frames preserve source proportions and sample the same movie coordinates', () => {
+test('wide band movies cover the complete curved LED without side or height letterboxing', () => {
   const centers = [];
   for (const band of SCREEN_BANDS) {
     const f = bandFrame(band, BUILDING.screen);
-    assert.ok(f.bottom > band.bottom && f.top < band.top);
-    assert.equal(f.width / f.height, 2);
-    const centerUV = bandVideoUV({ x: 0, y: f.center },band,BUILDING.screen);
+    assert.equal(f.bottom,band.bottom); assert.equal(f.top,band.top);
+    assert.ok(f.width / f.height > 3);
+    const source = atlas.bands[band.id-1];
+    assert.ok(Math.abs((source.width/source.height)/(f.width/f.height)-1)<.01);
+    const centerUV = bandVideoUV(bandSurfacePoint(band,.5,.5,BUILDING.screen),band,BUILDING.screen);
     assert.ok(Math.abs(centerUV.u-.5)<1e-10 && Math.abs(centerUV.v-.5)<1e-10);
-    const uv = bandVideoUV({ x:-f.width*.25, y:f.center+f.height*.25 },band,BUILDING.screen);
+    const uv = bandVideoUV(bandSurfacePoint(band,.25,.75,BUILDING.screen),band,BUILDING.screen);
     assert.ok(Math.abs(uv.u-.25)<1e-10 && Math.abs(uv.v-.75)<1e-10);
     for (const p of bandTargets(band)) assert.ok([p.x,p.y,p.z].every(Number.isFinite));
     centers.push(f.center);
   }
+  assert.equal(SCREEN_BANDS[0].top,SCREEN_BANDS[1].bottom);
+  assert.equal(SCREEN_BANDS[1].top,SCREEN_BANDS[2].bottom);
+  const {geometry,boundary} = createScreenGeometry(), positions = geometry.attributes.position;
+  for (let i=0;i<positions.count;i++) {
+    const point = {x:positions.getX(i),y:positions.getY(i),z:positions.getZ(i)};
+    const band = SCREEN_BANDS.find(b=>point.y<=b.top+.0001)??SCREEN_BANDS.at(-1);
+    const uv = bandVideoUV(point,band,BUILDING.screen);
+    assert.ok(Number.isFinite(uv.u)&&Number.isFinite(uv.v));
+    assert.ok(uv.u>=0&&uv.u<=1&&uv.v>=0&&uv.v<=1);
+  }
+  geometry.dispose();boundary.dispose();
   assert.ok(centers[0] < centers[1] && centers[1] < centers[2]);
   const texture = new THREE.Texture(), material = createBandScreenMaterial(texture,true,BUILDING.screen);
   assert.equal(material.uniforms.uMovie.value, texture);
-  assert.equal(material.uniforms.uFrames.value.length,3);
+  assert.equal(material.uniforms.uBands.value.length,3);
+  assert.equal(material.uniforms.uAtlas.value.length,3);
   assert.equal(material.uniforms.uReady.value,1);
   material.dispose(); texture.dispose();
 });

@@ -6,9 +6,10 @@ export const WORLDS = Object.freeze([
     geometry: null,
   }),
   Object.freeze({
-    id: 'curvature-v1', label: 'V1 · 전층 곡률 재배치', shortLabel: 'V1 곡률',
-    description: '209·210과 반대편을 포함해 전층의 열·통로를 함께 재곡률화합니다. 중앙부 후퇴 최대 12m, 여유가 있는 열은 엇갈림 배치합니다.',
+    id: 'curvature-v1', label: 'V1 · 리클라이너 / 시청 우선 배치', shortLabel: 'V1 리클라이너',
+    description: '좌석 폭 0.90m · 중심 간격 1.02m · 두 행을 한 단으로 합친 리클라이너 배치. 좌석 수를 줄이고 전층 곡률과 의자 방향을 전방 화면에 맞춥니다.',
     geometry: Object.freeze({ rearShift: 12, halfWidth: 64, stagger: .25 }),
+    seating: 'recliner',
   }),
   Object.freeze({
     id: 'fan-v2', label: 'V2 · 부채형 차광막 / 3단 영상', shortLabel: 'V2 차광막',

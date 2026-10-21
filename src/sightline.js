@@ -1,5 +1,6 @@
 import { BUILDING, radians, seatMetrics } from './layout.js';
 import { audienceHead } from './audience-shape.js';
+import { seatEye } from './seating-pose.js';
 
 // Identical world-space targets for every variant. These are samples on the
 // front LED, not pixels and not an area/visibility percentage of the full dome.
@@ -25,7 +26,7 @@ export function headBlocksSegment(origin, target, head) {
 }
 
 export function evaluateSeat(layout, seat, { audience = true, targets = SCREEN_SAMPLES } = {}) {
-  const eye = { x: seat.x, y: seat.y + BUILDING.eyeHeight, z: seat.z };
+  const eye = seatEye(seat, BUILDING.eyeHeight);
   const people = audience ? layout.seats.filter(s => s.id !== seat.id).map(audienceHead) : [];
   let blocked = 0;
   for (const target of targets) {

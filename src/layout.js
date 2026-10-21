@@ -2,6 +2,7 @@ import inventory from './data/seat-inventory.json' with { type: 'json' };
 import plan from './data/plan-angles.json' with { type: 'json' };
 import { lowerPoint, LOWER_KNOTS, LOWER_TREAD, LOWER_LENGTH, pixelToPlan, PRODUCTION_PLAN } from './production-plan.js';
 import { getWorld, warpPlan } from './worlds.js';
+import { RECLINER, seatEye } from './seating-pose.js';
 
 // Published dimensions. Interior estimates are documented in RECONSTRUCTION_AUDIT.md.
 export const BUILDING = Object.freeze({
@@ -90,26 +91,35 @@ export function sampleRow(path, distance) {
 
 export function makeLayout(worldId = 'original') {
   const world = getWorld(worldId);
-  const tiers = world.geometry ? TIERS.map(t => ({ ...t, worldGeometry: world.geometry })) : TIERS;
+  const recliner = world.seating === 'recliner';
+  const tiers = world.geometry ? TIERS.map(t => ({ ...t, worldGeometry: world.geometry, rowStep: recliner ? RECLINER.rowStep : 1 })) : TIERS;
   const seats = [], sections = [], accessibleInventory = [];
   const byId = new Map(), bySection = new Map();
   for (const tier of tiers) {
     for (let section = tier.first; section <= tier.last; section++) {
-      const angles = sectionAngles(tier, section), range = rowRange(tier, section);
+      const angles = sectionAngles(tier, section), sourceRange = rowRange(tier, section);
+      // Keep reference-row labels for comparison, but merge two old steps into
+      // one deep terrace. Omit edge rows so the extended footrest fits inside.
+      const selectedRows = recliner ? Object.keys(SEAT_INVENTORY[section]).filter(r => /^\d+$/.test(r)).map(Number)
+        .filter(r => r > sourceRange.first && r < sourceRange.last && (r-sourceRange.first-1)%RECLINER.rowStep===0) : null;
+      const range = recliner ? { first: selectedRows[0], last: selectedRows.at(-1) } : sourceRange;
       const group = { id: section, tier, ...angles, range, rows: new Map(), seats: [] };
-      for (const [label, count] of Object.entries(SEAT_INVENTORY[section])) {
+      for (const [label, inventoryCount] of Object.entries(SEAT_INVENTORY[section])) {
         if (!/^\d+$/.test(label)) {
           // WC is not converted into an invented row of standard chairs.
-          accessibleInventory.push({ section, label, count }); continue;
+          accessibleInventory.push({ section, label, count: inventoryCount }); continue;
         }
         const row = Number(label), { radius, floorY } = rowGeometry(tier, row);
+        if (recliner && !selectedRows.includes(row)) continue;
         const rowBounds = sectionAngles(tier, section, row);
         const path = rowPath(tier, row, rowBounds.start, rowBounds.end);
         const length = path.slice(1).reduce((sum, b, i) => sum + Math.hypot(b.x - path[i].x, b.z - path[i].z), 0);
-        const span = Math.min(count * BUILDING.seatPitch, length - (tier.id === 100 ? .06 : BUILDING.aisleWidth));
+        const allowance = recliner ? 1.4 : (tier.id === 100 ? .06 : BUILDING.aisleWidth);
+        const count = recliner ? Math.max(1, Math.min(Math.floor(inventoryCount*BUILDING.seatPitch/RECLINER.pitch), Math.floor((length-allowance)/RECLINER.pitch))) : inventoryCount;
+        const span = Math.min(count * (recliner ? RECLINER.pitch : BUILDING.seatPitch), length - allowance);
         // Shift alternating rows only into existing spare deck width. Dense
         // rows retain their pitch; no seat is pushed into an aisle to stagger it.
-        const spare = Math.max(0, (length - span - (tier.id === 100 ? .06 : BUILDING.aisleWidth)) / 2);
+        const spare = Math.max(0, (length - span - allowance) / 2);
         const stagger = Math.min(spare, (tier.worldGeometry?.stagger ?? 0) * span / count) * (row % 2 ? 1 : -1);
         const rowSeats = [];
         for (let number = 1; number <= count; number++) {
@@ -120,8 +130,14 @@ export function makeLayout(worldId = 'original') {
             tier: tier.id, section, row, number, theta, radius, floorY,
             centerZ: tier.centerZ, rowStart: rowBounds.start, rowEnd: rowBounds.end,
             pitch: span / count,
-            ...position, y: floorY,
+            ...position, y: floorY, ...(recliner ? { recliner: true, width: RECLINER.width, sourceCount: inventoryCount } : {}),
           };
+          if (recliner) {
+            // Orient the chairs toward the fixed front viewing axis rather
+            // than forcing the viewer to face the tangent of the row.
+            seat.yaw = Math.atan2(seat.x-BUILDING.stage.x, seat.z-BUILDING.stage.z);
+            seat.viewPitch = Math.atan2(30-seatEye(seat).y, Math.hypot(seat.x-BUILDING.stage.x,seat.z-BUILDING.stage.z));
+          }
           seats.push(seat); rowSeats.push(seat); group.seats.push(seat); byId.set(seat.id, seat);
         }
         group.rows.set(row, rowSeats);
@@ -142,12 +158,13 @@ export function resolveSeat(layout, { section = 206, row = 10, number = null } =
 }
 
 export function seatMetrics(seat, eyeHeight = BUILDING.eyeHeight) {
-  const dx = BUILDING.stage.x - seat.x, dz = BUILDING.stage.z - seat.z;
-  const dy = BUILDING.stage.y - seat.y - eyeHeight, horizontal = Math.hypot(dx, dz);
+  const eye = seatEye(seat, eyeHeight);
+  const dx = BUILDING.stage.x - eye.x, dz = BUILDING.stage.z - eye.z;
+  const dy = BUILDING.stage.y - eye.y, horizontal = Math.hypot(dx, dz);
   let yawDifference = Math.atan2(-dx, -dz) - seat.yaw;
   while (yawDifference > Math.PI) yawDifference -= 2 * Math.PI;
   while (yawDifference < -Math.PI) yawDifference += 2 * Math.PI;
-  return { distance: Math.hypot(horizontal, dy), elevation: seat.y + eyeHeight, stagePitch: Math.atan2(dy, horizontal), yawDifference };
+  return { distance: Math.hypot(horizontal, dy), elevation: eye.y, stagePitch: Math.atan2(dy, horizontal), yawDifference };
 }
 
 export const PRESETS = [

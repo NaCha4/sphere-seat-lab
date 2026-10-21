@@ -22,20 +22,22 @@ export function bankPoint(section, row, fraction) {
   // A tread is a straight loft between its two edges. The narrower stair
   // subdivisions must use that same edge, rather than resampling the curve and
   // opening a hairline gap next to a tapered lower-bowl section.
-  const front = Math.floor(row + .5 + 1e-9) - .5, blend = row - front;
+  const step = section.tier.rowStep ?? 1;
+  const start = section.range.first-step/2;
+  const front = start + Math.floor((row-start)/step+1e-9)*step, blend = (row-front)/step;
   const at = r => {
     const { start, end } = bankBounds(section, r);
     return rowPoint(section.tier, r, start + (end - start) * fraction);
   };
-  const a = at(front), b = at(front + 1);
+  const a = at(front), b = at(front + step);
   return { x: a.x + (b.x - a.x) * blend, z: a.z + (b.z - a.z) * blend };
 }
 
 // Loft a closed stepped profile across a curved, potentially tapered footprint.
 // Every surface shares the same vertices at seams, including both side caps.
-function steppedSolid({ tier, first, last, stepsPerRow = 1, narrow = false, boundsAt, pointAt, bottomAt, elevationAt }) {
-  const front = first - .5, back = last + .5, rings = [];
-  const count = Math.round((last - first + 1) * stepsPerRow);
+function steppedSolid({ tier, first, last, rowSpan = 1, stepsPerRow = 1, narrow = false, boundsAt, pointAt, bottomAt, elevationAt }) {
+  const front = first - rowSpan/2, rings = [];
+  const count = Math.round((last - first + rowSpan) * stepsPerRow);
   for (let i = 0; i < count; i++) {
     const a = front + i / stepsPerRow, b = front + (i + 1) / stepsPerRow;
     const y = elevationAt(a + .5 / stepsPerRow);
@@ -108,11 +110,13 @@ function steppedSolid({ tier, first, last, stepsPerRow = 1, narrow = false, boun
 }
 
 export function createBankGeometry(section) {
+  const step = section.tier.rowStep ?? 1;
   return steppedSolid({
     tier: section.tier, first: section.range.first, last: section.range.last,
+    rowSpan: step, stepsPerRow: 1/step,
     boundsAt: row => bankBounds(section, row), bottomAt: row => bankBottom(section, row),
     pointAt: (row, fraction) => bankPoint(section, row, fraction),
-    elevationAt: row => rowGeometry(section.tier, Math.round(row)).floorY,
+    elevationAt: row => rowGeometry(section.tier, section.range.first+Math.round((row-section.range.first)/step)*step).floorY,
   });
 }
 
@@ -123,7 +127,7 @@ export function createAisleGeometry(left, right) {
   const steps = major ? Math.max(2, Math.ceil(tier.rise / .18)) : 1;
   const bottomAt = row => Math.min(bankBottom(left, row), bankBottom(right, row));
   return steppedSolid({
-    tier, first, last, stepsPerRow: steps, narrow: true,
+    tier, first, last, rowSpan: tier.rowStep ?? 1, stepsPerRow: steps, narrow: true,
     boundsAt: row => ({ start: bankBounds(left, row).end, end: bankBounds(right, row).start }),
     pointAt: (row, fraction) => {
       const a = bankPoint(left, row, 1), b = bankPoint(right, row, 0);

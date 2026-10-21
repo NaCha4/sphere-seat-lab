@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HEAD, audienceVariation as variation, audienceStature, audienceHead } from './audience-shape.js';
+import { RECLINER } from './seating-pose.js';
 
 function transformed(geometry, position, scale, rotation = 0) {
   geometry.scale(...scale); geometry.rotateZ(rotation); geometry.translate(...position);
@@ -33,6 +34,12 @@ export class Audience extends THREE.Group {
     ];
     const body = mergeGeometries(bodyParts), lap = mergeGeometries(legs);
     [...bodyParts, ...legs].forEach(g => g.dispose());
+    if (layout.world.seating === 'recliner') {
+      for (const geometry of [head,body]) {
+        geometry.translate(0,-.46,.05); geometry.rotateX(RECLINER.backAngle); geometry.translate(0,.46,-.05);
+      }
+      lap.rotateX(-.15); lap.translate(0,-.03,-.04);
+    }
     const specs = [
       [head, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), 'audience-heads'],
       [body, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 }), 'audience-torsos'],

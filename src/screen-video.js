@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 
 export const SCREEN_MOVIE_URL = './media/sphere-aurora-loop.mp4';
+export const BAND_MOVIE_URL = './media/sphere-wide-bands.mp4';
+const MOVIE_SOURCES = {
+  sphere: { url: SCREEN_MOVIE_URL, poster: './media/sphere-aurora-poster.jpg' },
+  bands: { url: BAND_MOVIE_URL, poster: './media/sphere-wide-bands-poster.jpg' },
+};
 
 // The mesh UV covers only the spherical cap. Sample the corresponding latitude
 // range of a complete 2:1 equirectangular movie, rather than stretch 180° into it.
@@ -17,17 +22,24 @@ export function fitSphericalVideo(texture, screen) {
 }
 
 export class DomeMovie {
-  constructor({ screen, video = document.createElement('video'), onChange = () => {} }) {
+  constructor({ screen, video = document.createElement('video'), onChange = () => {}, mode = 'sphere' }) {
     this.video = video; this.onChange = onChange;
+    this.mode = mode; this.sourceGeneration = 0; this.seekTime = null;
     this.active = false; this.wantsPlayback = true; this.ready = false;
     this.blocked = false; this.buffering = false; this.error = ''; this.disposed = false;
     video.muted = true; video.defaultMuted = true; video.loop = true;
     video.playsInline = true; video.preload = 'auto';
     video.setAttribute('playsinline', '');
-    video.poster = './media/sphere-aurora-poster.jpg';
+    video.poster = MOVIE_SOURCES[mode].poster;
     this.texture = fitSphericalVideo(new THREE.VideoTexture(video), screen);
     this.listeners = new Map();
     const listen = (name, fn) => { video.addEventListener(name,fn); this.listeners.set(name,fn); };
+    listen('loadedmetadata', () => {
+      if (this.seekTime !== null) {
+        video.currentTime = this.seekTime % (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 20);
+        this.seekTime = null;
+      }
+    });
     const ready = () => {
       this.ready = video.readyState >= 2;
       if (this.ready) { this.error = ''; this.texture.needsUpdate = true; }
@@ -38,7 +50,18 @@ export class DomeMovie {
     listen('pause',() => this.emit());
     listen('waiting',() => { this.buffering = true; this.emit(); });
     listen('error',() => { this.error = '영상을 불러오지 못했습니다. 재생 버튼으로 다시 시도하세요.'; this.emit(); });
-    video.src = SCREEN_MOVIE_URL;
+    video.src = MOVIE_SOURCES[mode].url;
+  }
+
+  setSource(mode) {
+    if (mode === this.mode) return;
+    const source = MOVIE_SOURCES[mode];
+    if (!source) throw new Error(`Unknown screen movie: ${mode}`);
+    this.seekTime = this.seekTime ?? (this.video.currentTime || 0);
+    this.sourceGeneration++;
+    this.mode = mode; this.ready = false; this.blocked = false; this.buffering = false; this.error = '';
+    this.video.pause(); this.video.poster = source.poster; this.video.src = source.url;
+    this.video.load(); this.emit();
   }
 
   emit() { if (!this.disposed) this.onChange(this.getState()); }
@@ -49,19 +72,21 @@ export class DomeMovie {
       active: this.active, requested: this.wantsPlayback, ready: this.ready, playing,
       status: this.error ? 'error' : this.blocked ? 'blocked' : !this.ready ? 'loading' : this.buffering && playing ? 'buffering' : playing ? 'playing' : 'paused',
       duration: Number.isFinite(this.video.duration) ? this.video.duration : 20,
-      currentTime: this.video.currentTime || 0, error: this.error,
+      currentTime: this.seekTime ?? (this.video.currentTime || 0), error: this.error, source: this.mode,
     };
   }
 
   async resume() {
     if (this.disposed || !this.active || !this.wantsPlayback) return false;
+    const generation = this.sourceGeneration;
     try {
       if (this.error) { this.error = ''; this.video.load(); }
       await this.video.play();
+      if (generation !== this.sourceGeneration) return false;
       if (this.disposed || !this.active || !this.wantsPlayback) { this.video.pause(); return false; }
       this.blocked = false; this.emit(); return true;
     } catch (error) {
-      if (error.name !== 'AbortError' && this.active && this.wantsPlayback) {
+      if (generation === this.sourceGeneration && error.name !== 'AbortError' && this.active && this.wantsPlayback) {
         this.blocked = true; this.emit();
       }
       return false;

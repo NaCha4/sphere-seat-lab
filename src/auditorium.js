@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RECLINER } from './seating-pose.js';
 import { BUILDING, TIERS, radians, rowGeometry, rowPoint, rowPath, sectionAngles } from './layout.js';
 import { bankBounds, bankPoint, createBankGeometry, createAisleGeometry, mergeBowlSurfaces } from './bowl-geometry.js';
 import { createAuroraMaterial } from './screen-content.js';
@@ -254,7 +255,17 @@ export class Auditorium {
     // Luxx-family rail mount, drawn from the public manufacturer's profile.
     // The 580 mm variant is a reconstruction choice, not a verified Sphere order.
     const seatPad = roundedPanel(.46, .47, .10, .055); seatPad.rotateX(-Math.PI / 2);
-    const parts = [
+    const parts = this.layout.world.seating === 'recliner' ? [
+      { geometry: new THREE.BoxGeometry(.82, .30, .72), position: [0,.17,-.02] },
+      { geometry: roundedPanel(.63,.60,.16,.09).rotateX(-Math.PI/2), position: [0,.43,-.14], fabric: true },
+      { geometry: roundedPanel(.66,.78,.15,.09), position: [0,.82,.31], tilt: RECLINER.backAngle, fabric: true },
+      { geometry: roundedPanel(.57,.22,.17,.08), position: [0,1.16,.49], tilt: RECLINER.backAngle, fabric: true },
+      { geometry: roundedPanel(.14,.68,.27,.06).rotateX(-Math.PI/2), position: [-.38,.52,-.10], fabric: true },
+      { geometry: roundedPanel(.14,.68,.27,.06).rotateX(-Math.PI/2), position: [.38,.52,-.10], fabric: true },
+      { geometry: roundedPanel(.64,.51,.12,.07).rotateX(-Math.PI/2), position: [0,.32,-.67], fabric: true },
+      { geometry: new THREE.BoxGeometry(.43,.08,.46), position: [0,.23,-.55] },
+      { geometry: new THREE.CylinderGeometry(.046,.038,.07,10,1,true), position: [.38,.675,-.33] },
+    ] : [
       { geometry: seatPad, position: [0, .40, -.095], fabric: true },
       { geometry: roundedPanel(.46, .56, .09, .07), position: [0, .64, .185], tilt: radians(12), fabric: true },
       { geometry: new THREE.PlaneGeometry(.39, .45).rotateY(Math.PI), position: [0, .64, .137], tilt: radians(12), fabric: true },
@@ -283,7 +294,7 @@ export class Auditorium {
         o.position.set(s.x, s.y, s.z); o.rotation.set(0, s.yaw, 0);
         // Standard width options are visual approximations, not installed-seat IDs.
         const width = s.pitch >= .579 ? .58 : s.pitch >= .555 ? .555 : .53;
-        o.scale.set(width / .58, 1, 1); o.updateMatrix();
+        o.scale.set(s.recliner ? 1 : width / .58, 1, 1); o.updateMatrix();
         part.position.fromArray(def.position); part.rotation.set(def.tilt || 0, 0, 0); part.updateMatrix();
         mesh.setMatrixAt(s.index, o.matrix.clone().multiply(part.matrix));
         mesh.setColorAt(s.index, def.fabric ? baseColors.get(s.tier) : new THREE.Color('#9aa8b3'));
@@ -341,6 +352,7 @@ export class Auditorium {
       if (!this.movie) this.movie = new DomeMovie({ screen: BUILDING.screen, onChange: () => {
         this.syncVideoMaterial(); this.onPlaybackChange?.(this.getVideoState());
       } });
+      this.movie.setSource(this.layout.world.screenLayout === 'three-bands' ? 'bands' : 'sphere');
       void this.movie.setActive(true);
       if (this.layout.world.screenLayout === 'three-bands') {
         this.texture = this.movie.texture;

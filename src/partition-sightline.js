@@ -1,13 +1,11 @@
 import { BUILDING } from './layout.js';
-import { SCREEN_BANDS, bandForTier, bandFrame, fanRings, partitionBlocksSegment } from './partition-layout.js';
+import { SCREEN_BANDS, bandForTier, bandSurfacePoint, fanRings, partitionBlocksSegment } from './partition-layout.js';
 
 export function bandTargets(band) {
-  const frame = bandFrame(band, BUILDING.screen), { radius, centerY, centerZ } = BUILDING.screen;
-  return Array.from({ length: 17 * 9 }, (_, i) => {
-    const x = ((i % 17) / 16 * .96 - .48) * frame.width;
-    const y = frame.center + (Math.floor(i / 17) / 8 * .96 - .48) * frame.height;
-    return { x, y, z: centerZ - Math.sqrt(radius ** 2 - x ** 2 - (y - centerY) ** 2) };
-  });
+  // Cover the complete illuminated band, rather than the old central rectangle.
+  return Array.from({ length: 17 * 9 }, (_, i) => bandSurfacePoint(
+    band, .02 + (i % 17) / 16 * .96, .02 + Math.floor(i / 17) / 8 * .96, BUILDING.screen,
+  ));
 }
 
 export function evaluatePartitions(seat, amount = 0) {

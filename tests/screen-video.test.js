@@ -5,7 +5,7 @@ import { BUILDING } from '../src/layout.js';
 import { makeLayout } from '../src/layout.js';
 import { Auditorium } from '../src/auditorium.js';
 import { createScreenGeometry } from '../src/screen-geometry.js';
-import { DomeMovie, fitSphericalVideo } from '../src/screen-video.js';
+import { DomeMovie, fitSphericalVideo, SCREEN_MOVIE_URL, BAND_MOVIE_URL } from '../src/screen-video.js';
 
 class FakeVideo extends EventTarget {
   paused = true; ended = false; readyState = 0; duration = 20; currentTime = 0;
@@ -104,7 +104,11 @@ test('the decoded movie replaces the loading image without resetting overview or
     assert.equal(model.getPartitionState().amount,0,'the fan starts folded');
     assert.equal(model.movie,movie); assert.equal(model.screen,screen); assert.equal(video.currentTime,7.25);
     assert.equal(model.screenMaterial.uniforms.uMovie.value,texture);
+    assert.equal(video.src,BAND_MOVIE_URL);
+    assert.equal(model.screenMaterial.uniforms.uReady.value,0);
+    video.dispatchEvent(new Event('loadedmetadata'));video.decode();
     assert.equal(model.screenMaterial.uniforms.uReady.value,1);
+    assert.equal(video.currentTime,7.25);
     const material = model.screenMaterial;
     for (const id of ['106-16-8','206-10-8','306-10-8']) {
       const seat = model.layout.byId.get(id);
@@ -115,7 +119,19 @@ test('the decoded movie replaces the loading image without resetting overview or
     model.setScreen('aurora'); assert.equal(model.screenMode,'video','this experimental world keeps three synchronized videos');
     model.setLayout(makeLayout('original'));
     assert.equal(model.getPartitionState(),null);
+    assert.equal(video.src,SCREEN_MOVIE_URL);
+    video.dispatchEvent(new Event('loadedmetadata'));video.decode();
     assert.equal(model.screenMaterial.map,texture);
     assert.equal(players,1,'switching between triple and full-dome playback uses one decoder');
   } finally { model?.dispose(); globalThis.document = original; }
+});
+
+test('switching wide/full-dome movies preserves pause and restores the timeline after metadata', async () => {
+  const video=new FakeVideo(),movie=new DomeMovie({screen:BUILDING.screen,video});
+  video.decode();await movie.setActive(true);video.currentTime=11.5;
+  await movie.setPlaying(false);movie.setSource('bands');
+  assert.equal(video.src,BAND_MOVIE_URL);assert.equal(movie.getState().ready,false);
+  video.currentTime=0;video.dispatchEvent(new Event('loadedmetadata'));video.decode();
+  assert.equal(video.currentTime,11.5);assert.equal(movie.getState().requested,false);
+  assert.equal(video.paused,true);movie.dispose();
 });
