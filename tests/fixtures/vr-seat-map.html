@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko"><meta charset="UTF-8"><title>VR 좌석 지도 미리보기</title>
+<style>body{margin:0;background:#081317;color:#d9eee3;font:16px system-ui}header{position:fixed;z-index:1;top:20px;left:30px}h1{font-size:24px;margin:0 0 12px}select,button{font:inherit;background:#28453e;color:inherit;padding:8px;border:1px solid #6d9387;border-radius:4px}p{max-width:330px;font-size:14px;color:#99bbb0}#status{font-size:18px;color:#ccebc2}canvas{display:block}</style>
+<header><h1>VR 좌석 지도 미리보기</h1><select id="world" aria-label="객석 월드"></select><button id="open">지도 열기</button><p>헤드셋에 표시되는 동일한 지도입니다. 구역을 고른 뒤 좌석을 누르면 선택한 위치가 표시됩니다.</p><p id="status"></p></header>
+<script type="module">
+import * as THREE from 'three';
+import {XrSeatMap} from '../../src/xr-seat-map.js';
+import {makeLayout,resolveSeat} from '../../src/layout.js';
+import {WORLDS} from '../../src/worlds.js';
+import {pickTarget} from '../../src/interaction.js';
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.01,10);
+camera.position.set(-.22,-.42,1.65);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(devicePixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;document.body.append(renderer.domElement);
+let layout=makeLayout('fan-v2'),seat=resolveSeat(layout,{});
+const select=document.querySelector('#world');select.innerHTML=WORLDS.map(w=>`<option value="${w.id}">${w.label}</option>`).join('');select.value='fan-v2';
+const status=()=>document.querySelector('#status').textContent=`현재 위치: ${seat.section} 구역 · ${seat.row}행 · ${seat.number}번째`;
+const map=new XrSeatMap({layout,seat,onSelectSeat:next=>{seat=next;map.update(layout,seat);status();},onClose:()=>{map.visible=false;}});scene.add(map);map.open();status();
+select.onchange=()=>{layout=makeLayout(select.value);seat=resolveSeat(layout,{section:seat.section,row:seat.row});map.update(layout,seat);map.open();status();};document.querySelector('#open').onclick=()=>map.open();
+const ray=new THREE.Raycaster();let target;
+function aim(event){ray.setFromCamera(new THREE.Vector2(event.clientX/innerWidth*2-1,1-event.clientY/innerHeight*2),camera);scene.updateMatrixWorld(true);target=pickTarget(ray,map.pickables,[],[]);map.setHover(target?.region??null);}
+renderer.domElement.addEventListener('pointermove',aim);renderer.domElement.addEventListener('click',e=>{aim(e);target?.action?.();});
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
+renderer.setAnimationLoop(()=>renderer.render(scene,camera));
+</script></html>

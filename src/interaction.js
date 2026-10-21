@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { seatEye } from './seating-pose.js';
 
 export const XR_OVERLAY_ORDER = 10000;
 
@@ -37,11 +38,22 @@ export function overlayMaterial(options = {}) {
 export function pickTarget(raycaster, buttons, pickables, seats, occluders = []) {
   // Raycaster does not automatically honour an invisible parent's visibility.
   const button = raycaster.intersectObjects(buttons.filter(visibleInHierarchy), false)[0];
-  if (button) return { type: 'button', ...button };
+  if (button) return { ...button, ...(button.object.userData.resolveHit?.(button) ?? {type:'button'}) };
   const hit = raycaster.intersectObjects(pickables, false)[0];
   if (hit?.instanceId == null || !seats[hit.instanceId]) return null;
   if (raycaster.intersectObjects(occluders.filter(visibleInHierarchy), false).some(block => block.distance < hit.distance)) return null;
   return { type: 'seat', seat: seats[hit.instanceId], ...hit };
+}
+
+// Place the tracked head at the selected chair's eye position and restore the
+// chair's forward direction without changing the chair or forcing head pitch.
+export function seatedVrTransform(seat, pose, eyeHeight=1.18) {
+  const p=pose.transform.position,q=pose.transform.orientation;
+  const headEuler=new THREE.Euler().setFromQuaternion(new THREE.Quaternion(q.x,q.y,q.z,q.w),'YXZ');
+  const yaw=seat.yaw-headEuler.y;
+  const offset=new THREE.Vector3(p.x,p.y,p.z).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+  const eye=seatEye(seat,eyeHeight);
+  return {yaw,position:new THREE.Vector3(eye.x,eye.y,eye.z).sub(offset)};
 }
 
 export function createAimPointer() {
