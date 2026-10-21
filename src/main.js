@@ -32,7 +32,7 @@ app.innerHTML = `
   <div id="veil"></div>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Sphere Seat Lab 홈">${icon('sphere', 31)}<span>SPHERE<span class="brand-sub">SEAT LAB</span></span></a>
-    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 10</span><h1>좌석에서 만나는 스피어</h1></div>
+    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 11</span><h1>좌석에서 만나는 스피어</h1></div>
     <div class="header-actions"><button class="icon-button" id="research" aria-label="모델 근거와 출처">${icon('info')}</button><button class="vr-button" id="vr">${icon('vr', 20)}<span>VR 시작</span></button></div>
   </header>
   <aside class="sidebar" aria-label="좌석과 보기 설정">
@@ -41,13 +41,13 @@ app.innerHTML = `
     <label class="field movie-field">재생 영상<select id="movie">${VIDEO_PRESETS.map(v => `<option value="${v.id}">${v.label}</option>`).join('')}</select></label>
     <p class="movie-credit" id="movie-credit" hidden><a id="movie-credit-link" target="_blank" rel="noopener noreferrer"></a></p>
     <section id="partition-controls" class="partition-controls" hidden>
-      <h3>두 구역 사이 차광막 1개</h3><p>하부 1·2층 / 상부 3·4층<br>하부 등받이 20° · 상부 등받이 55°<br>상부는 천장 쪽을 향해 눕힌 자세입니다.</p>
-      <button id="partition-toggle" type="button">차광막 펼치기</button>
-      <button id="partition-fit" type="button">겹침 범위에 맞춰 전개</button>
-      <label class="partition-range">전개량 <input id="partition-amount" type="range" min="0" max="100" value="0"><output id="partition-value">0%</output></label>
+      <h3>객석 전면의 짧은 차양</h3><p>하부 1·2층 / 상부 3·4층<br>하부 등받이 20° · 상부 등받이 55°<br>상부 착석 시야만 차광 목표로 계산합니다.</p>
+      <button id="partition-toggle" type="button">차양 수동 전개</button>
+      <button id="partition-fit" type="button">착석 시야 기준 최소 길이 적용</button>
+      <label class="partition-range">돌출 길이 <input id="partition-amount" type="range" min="0" max="${partitionFootprint.maximumProjectionMetres * 100}" step="5" value="0"><output id="partition-value">0.00m</output></label>
       <p id="partition-status" role="status"></p>
       <div class="partition-views"><button data-band-view="0">1·2층 보기</button><button data-band-view="1">3·4층 보기</button></div>
-      <p>차광막은 전방의 시야 겹침 범위만 남겼습니다. 약 ${Math.round(partitionFootprint.area).toLocaleString()}㎡로 이전 큰 부채꼴보다 면적을 68% 줄였습니다. 100%는 이 작은 막의 전체 전개입니다. 높이 24.4m · 경계 여유 1m. 고개를 돌린 시야는 다를 수 있습니다.</p>
+      <p>3층 객석 전면에서 화면 쪽으로만 0–${partitionFootprint.maximumProjectionMetres}m 돌출합니다. 객석 구역 사이 통로는 비워둡니다. 현재 상부 시야에는 하부 영상이 들어오지 않아 권장 길이는 0m입니다. 수동 최대 면적 약 ${Math.round(partitionFootprint.area)}㎡. 하부의 상부 영상 노출은 차단하지 않으며, 고개를 숙이거나 돌린 시야는 별도입니다.</p>
     </section>
     <div class="view-tabs" role="group" aria-label="보기 방식"><button id="seat-view" class="active">${icon('eye', 16)}좌석 시점</button><button id="overview">${icon('cube', 16)}전체 구조</button></div>
     <div class="map-wrap"><svg id="seat-map" viewBox="0 0 300 218" role="img" aria-label="좌석 구역 지도"></svg><span class="map-caption">구역을 눌러 이동하세요</span></div>
@@ -68,7 +68,7 @@ app.innerHTML = `
     <p class="sidebar-note"><span id="movie-description">회전하는 네온 궤도와 확산하는 링으로 구성한 360° 모션그래픽입니다.</span><br>무음 반복 · 실제 공연 영상 아님<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
   </aside>
   <main class="scene-ui">
-    <div class="scene-caption"><span class="tag">RESEARCH 10</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
+    <div class="scene-caption"><span class="tag">RESEARCH 11</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
     <div class="scene-tools"><button id="reset" class="tool-button" title="시선 초기화">${icon('reset')}<span>시선 초기화</span></button><button id="screenshot" class="icon-button" title="현재 화면 이미지 저장" aria-label="현재 화면 이미지 저장">${icon('camera')}</button><button id="share" class="icon-button" title="현재 좌석 링크 복사" aria-label="현재 좌석 링크 복사">${icon('link')}</button></div>
     <div class="seat-card"><div class="seat-card-main"><span class="eyebrow" id="tier-name">TERRACE / 200 LEVEL</span><div><strong id="selected-section">206</strong><span id="selected-position">10행 · 13번</span></div><span class="seat-description" id="seat-description">중앙에서 무대와 화면을 함께 확인하세요.</span></div><div class="seat-stats"><div><span>전방 기준점까지</span><strong id="distance">—</strong></div><div><span>모델상 눈높이</span><strong id="height">—</strong></div><div><span>기준점 방향 차이</span><strong id="yaw">—</strong></div></div><div class="metrics-note">거리·각도는 추정 좌표의 계산값이며 실측값이 아닙니다.</div></div>
     <div class="bottom-line"><span class="interaction-hint" id="hint">마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화</span><button id="model-info">공개 자료 기반 재구성 ${icon('info', 13)}</button></div>
@@ -134,8 +134,8 @@ function requestComparison() {
 function renderComparison(error = false) {
   if (currentWorld.partitions) {
     const p = comparisonResult?.partition;
-    if (!p) { $('comparison-result').textContent = error ? '시야 계산을 사용할 수 없습니다.' : model?.getPartitionState()?.moving ? '차광막이 멈추면 시야를 계산합니다.' : '차광막 시야 계산 중…'; return; }
-    $('comparison-result').innerHTML = `<table><thead><tr><th>영상 구역</th><th>판에 가려짐</th><th>막 가림 없음</th></tr></thead><tbody>${p.bands.map(b => `<tr><th>${b.id === 1 ? '1·2층' : '3·4층'}${b.id === p.ownBand ? ' (내 구역)' : ''}</th><td>${b.blocked}/${b.samples}</td><td>${b.visible}/${b.samples}</td></tr>`).join('')}</tbody></table><p>다른 구역 노출: ${p.leakage}/${p.otherSamples}. 기본 시야 ${p.viewField.horizontalDegrees}° × ${p.viewField.verticalDegrees}° 안의 표본입니다. 좌석·난간·관객 가림은 제외합니다.</p>`;
+    if (!p) { $('comparison-result').textContent = error ? '시야 계산을 사용할 수 없습니다.' : model?.getPartitionState()?.moving ? '차양이 멈추면 시야를 계산합니다.' : '차양 시야 계산 중…'; return; }
+    $('comparison-result').innerHTML = `<table><thead><tr><th>영상 구역</th><th>차양 가림</th><th>차양 가림 없음</th></tr></thead><tbody>${p.bands.map(b => `<tr><th>${b.id === 1 ? '1·2층' : '3·4층'}${b.id === p.ownBand ? ' (내 구역)' : ''}</th><td>${b.blocked}/${b.samples}</td><td>${b.visible}/${b.samples}</td></tr>`).join('')}</tbody></table><p>${p.protectionRequired ? `상부 착석 시야에 남는 하부 영상: ${p.leakage}/${p.otherSamples}.` : `하부는 완전 분리 대상이 아닙니다. 상부 영상 노출 ${p.leakage}/${p.otherSamples}은 허용합니다.`} 내 구역 가림 ${p.ownBlocked}. 시선 고도 ${p.pitchDegrees.toFixed(1)}° · 시야 ${p.viewField.horizontalDegrees}° × ${p.viewField.verticalDegrees}°. 좌석·난간·관객 가림과 고개 회전은 제외합니다.</p>`;
     return;
   }
   if (!comparisonResult) { $('comparison-result').textContent = error ? '이 브라우저에서 비교 계산을 실행하지 못했습니다.' : '같은 조건으로 계산 중…'; return; }
@@ -348,7 +348,7 @@ function createXrPanel() {
     ['관객 켜기/끄기', () => setAudienceEnabled(!audienceEnabled)],
     ['영상 재생/정지', toggleVideoPlayback],
     ['다음 영상', cycleVideoPreset],
-    ['차광막 접기/펼치기', togglePartitions],
+    ['차양 접기/펼치기', togglePartitions],
   ];
   actions.forEach(([text, action], i) => {
     const canvas = document.createElement('canvas'); canvas.width = 384; canvas.height = 144;
@@ -404,14 +404,14 @@ function updateXrSummary() {
   ctx.fillText(`${currentWorld.label} | ${currentSeat.section} · ${currentSeat.row}행 · ${currentSeat.number}번째`, 700, 35, 1360);
   if (comparisonResult?.partition) {
     const p = comparisonResult.partition; ctx.font = '38px system-ui';
-    ctx.fillText(`${p.ownBand === 1 ? '1·2층' : '3·4층'} 영상 구역 · 차광막 전개 ${Math.round(p.amount * 100)}%`, 700, 99, 1360);
-    ctx.fillText(`기본 시야: 다른 구역 노출 ${p.leakage}/${p.otherSamples} · 내 구역 가림 ${p.ownBlocked} (판만)`, 700, 162, 1360);
+    ctx.fillText(`${p.ownBand === 1 ? '1·2층' : '3·4층'} 영상 구역 · 차양 돌출 ${(p.amount * partitionFootprint.maximumProjectionMetres).toFixed(2)}m`, 700, 99, 1360);
+    ctx.fillText(`${p.protectionRequired ? '상부 차광 대상' : '하부 노출 허용'}: 다른 영상 ${p.leakage}/${p.otherSamples} · 내 구역 가림 ${p.ownBlocked}`, 700, 162, 1360);
   } else if (comparisonResult) {
     const a = comparisonResult.original, b = comparisonResult.variant;
     ctx.font = '38px system-ui';
     ctx.fillText(`원본 → ${comparisonWorld.shortLabel}   방향 ${a.turnDegrees.toFixed(1)}° → ${b.turnDegrees.toFixed(1)}°`, 700, 99, 1360);
     ctx.fillText(audienceEnabled ? `머리 가림 표본 ${a.blocked} → ${b.blocked} / ${a.samples} (추정)` : '관객 켜기: 머리 가림 비교 · 눈높이 1.18m (추정)', 700, 162, 1360);
-  } else { ctx.font = '36px system-ui'; ctx.fillText(comparisonError ? '비교 계산을 사용할 수 없습니다.' : model?.getPartitionState()?.moving ? `차광막 전개 ${Math.round(model.getPartitionState().amount * 100)}%` : '같은 좌석 조건으로 비교 계산 중…', 700, 114, 1360); }
+  } else { ctx.font = '36px system-ui'; ctx.fillText(comparisonError ? '비교 계산을 사용할 수 없습니다.' : model?.getPartitionState()?.moving ? `차양 돌출 ${model.getPartitionState().projectionMetres.toFixed(2)}m` : '같은 좌석 조건으로 비교 계산 중…', 700, 114, 1360); }
   xrSummary.material.map.needsUpdate = true;
 }
 
@@ -589,7 +589,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-10', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-11', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
 }
 
 function visitBand(index) {
@@ -601,7 +601,7 @@ function updatePartitionUI() {
   const active = Boolean(currentWorld.partitions), state = model?.getPartitionState();
   if (xrPartitionButton) {
     xrPartitionButton.visible = active;
-    const text = state?.deployed ? '차광막 접기' : '차광막 펼치기';
+    const text = state?.deployed ? '차양 접기' : '차양 수동 전개';
     if (active && xrPartitionButton.userData.caption !== text) {
       const ctx = xrPartitionButton.userData.canvas.getContext('2d');
       ctx.fillStyle = '#3f3451'; ctx.fillRect(0,0,384,144); ctx.strokeStyle = '#a493b9'; ctx.lineWidth = 3; ctx.strokeRect(3,3,378,138);
@@ -610,26 +610,27 @@ function updatePartitionUI() {
     }
   }
   $('partition-controls').hidden = !active; $('content').disabled = active;
-  document.querySelector('.comparison-panel h3').textContent = active ? '차광막에 의한 구역 분리' : '같은 구역에서 전후 비교';
+  document.querySelector('.comparison-panel h3').textContent = active ? '착석 시야와 차양 가림' : '같은 구역에서 전후 비교';
   updateVideoUI();
   document.querySelector('.compare-seats').hidden = active;
   document.querySelector('.comparison-note').hidden = active;
   if (!active) return;
-  const band = bandForTier(currentSeat.tier), amount = Math.round((state?.amount ?? 0) * 100);
-  $('partition-toggle').textContent = state?.deployed ? '차광막 접기' : '차광막 펼치기';
-  $('partition-amount').value = amount; $('partition-value').value = `${amount}%`;
-  $('partition-status').textContent = `${band.label} → 화면 높이 ${band.bottom}–${band.top.toFixed(1)}m · 권장 전개 ${Math.round((state?.recommendedAmount ?? 0) * 100)}%${state?.moving ? ' · 움직이는 중' : ''}`;
+  const band = bandForTier(currentSeat.tier), projection = state?.projectionMetres ?? 0;
+  $('partition-toggle').textContent = state?.deployed ? '차양 접기' : '차양 수동 전개';
+  $('partition-amount').value = Math.round(projection * 100); $('partition-value').value = `${projection.toFixed(2)}m`;
+  const recommended = state?.recommendedAmount;
+  $('partition-status').textContent = `${band.label} · 현재 ${projection.toFixed(2)}m · ${recommended == null ? '현 차양 범위로 차광 불가' : `착석 기준 최소 ${(recommended * partitionFootprint.maximumProjectionMetres).toFixed(2)}m`}${state?.moving ? ' · 움직이는 중' : ''}`;
 }
 
 function togglePartitions() {
-  if (!currentWorld.partitions) { toast('V2 차광막 월드에서 사용할 수 있습니다.'); return; }
+  if (!currentWorld.partitions) { toast('V2 객석 차양 월드에서 사용할 수 있습니다.'); return; }
   model.setPartitions(!model.getPartitionState().deployed);
   updatePartitionUI(); requestComparison();
 }
 
 $('partition-toggle').addEventListener('click', togglePartitions);
-$('partition-fit').addEventListener('click', () => { model?.setPartitions(true); updatePartitionUI(); requestComparison(); });
-$('partition-amount').addEventListener('input', () => { model?.setPartitionAmount(Number($('partition-amount').value) / 100); comparisonRequest++; comparisonResult = null; updatePartitionUI(); renderComparison(); updateXrSummary(); });
+$('partition-fit').addEventListener('click', () => { const minimum = model?.getPartitionState()?.recommendedAmount; if (minimum != null) model.setPartitionAmount(minimum); updatePartitionUI(); requestComparison(); });
+$('partition-amount').addEventListener('input', () => { model?.setPartitionAmount(Number($('partition-amount').value) / (partitionFootprint.maximumProjectionMetres * 100)); comparisonRequest++; comparisonResult = null; updatePartitionUI(); renderComparison(); updateXrSummary(); });
 $('partition-amount').addEventListener('change', requestComparison);
 document.querySelectorAll('[data-band-view]').forEach(button => button.addEventListener('click', () => visitBand(Number(button.dataset.bandView))));
 

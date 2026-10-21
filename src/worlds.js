@@ -12,8 +12,8 @@ export const WORLDS = Object.freeze([
     seating: 'recliner',
   }),
   Object.freeze({
-    id: 'fan-v2', label: 'V2 · 2구역 리클라이너 / 차광막 1개', shortLabel: 'V2 2구역',
-    description: '1·2층은 전방, 3·4층은 천장 쪽을 보는 리클라이너 구역입니다. 두 구역 사이 차광막 한 장을 필요한 만큼 전개합니다.',
+    id: 'fan-v2', label: 'V2 · 2구역 리클라이너 / 객석 전면 차양', shortLabel: 'V2 2구역',
+    description: '하부는 전방, 상부는 천장을 보는 리클라이너 배치. 상부 착석 시야를 기준으로 객석 전면 차양의 돌출을 최소화합니다.',
     geometry: null, screenLayout: 'two-bands', partitions: true, seating: 'recliner',
   }),
 ]);

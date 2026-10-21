@@ -1,40 +1,43 @@
 import * as THREE from 'three';
-import { PARTITIONS, fanRing } from './partition-layout.js';
+import { PARTITIONS, partitionPanels } from './partition-layout.js';
 import fit from './data/partition-fit.json' with { type: 'json' };
 
 export class FanPartitions extends THREE.Group {
   constructor() {
-    super(); this.name = 'foldable-physical-partitions'; this.amount = 0; this.target = 0;
-    this.membranes = PARTITIONS.levels.map((level, i) => {
+    super(); this.name = 'seat-edge-retractable-visors'; this.amount = 0; this.target = 0;
+    this.membranes = partitionPanels(1).map((panel, i) => {
       const mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({
         color: i ? '#485366' : '#4c5d59', roughness: .96, metalness: .08, side: THREE.DoubleSide,
       }));
-      mesh.name = `physical-separator-${i + 1}`; mesh.userData.level = level; this.add(mesh);
+      mesh.name = `seat-edge-blade-${panel.section}-${i}`; mesh.userData.level = panel.y; this.add(mesh);
       const ribs = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#9ba7a0' }));
-      ribs.name = 'radial-fold-ribs'; ribs.userData.level = level; this.add(ribs);
-      return { mesh, ribs, level };
+      ribs.name = 'blade-edge'; ribs.userData.level = panel.y; this.add(ribs);
+      const cassette = new THREE.Mesh(new THREE.BoxGeometry(panel.width, .10, .16), new THREE.MeshStandardMaterial({ color: '#9a8060', roughness: .65, metalness: .5 }));
+      cassette.position.set((panel.a.x + panel.b.x) / 2 - panel.normal.x * .08, panel.y, (panel.a.z + panel.b.z) / 2 - panel.normal.z * .08);
+      cassette.rotation.y = -Math.atan2(panel.b.z - panel.a.z, panel.b.x - panel.a.x);
+      cassette.name = `seat-edge-cassette-${panel.section}`; this.add(cassette);
+      return { mesh, ribs, level: panel.y, panel, cassette };
     });
-    for (const level of PARTITIONS.levels) {
-      const cassette = new THREE.Mesh(new THREE.BoxGeometry(2, .32, .65), new THREE.MeshStandardMaterial({ color: '#9a8060', roughness: .65, metalness: .5 }));
-      cassette.position.set(PARTITIONS.hubX, level, PARTITIONS.hubZ); cassette.name = 'fold-cassette'; this.add(cassette);
-    }
     this.setAmount(0);
   }
 
   setAmount(amount) {
     this.amount = THREE.MathUtils.clamp(amount, 0, 1);
-    const hub = { x: PARTITIONS.hubX, z: PARTITIONS.hubZ }, half = PARTITIONS.thickness / 2;
-    for (const { mesh, ribs, level } of this.membranes) {
-      const ring = fanRing(this.amount, level);
+    const half = PARTITIONS.thickness / 2, panels = partitionPanels(Math.max(.0001, this.amount));
+    for (const [index, { mesh, ribs, level }] of this.membranes.entries()) {
+      mesh.visible = ribs.visible = this.amount > 0;
+      const ring = panels[index].ring;
       const positions = [], indices = [], lines = [];
-      for (const p of [hub, ...ring]) positions.push(p.x, level + half, p.z, p.x, level - half, p.z);
+      for (const p of ring) positions.push(p.x, level + half, p.z, p.x, level - half, p.z);
+      indices.push(0, 2, 4, 0, 4, 6, 1, 5, 3, 1, 7, 5);
       for (let i = 0; i < ring.length; i++) {
-        const a = 2 + i * 2, b = 2 + ((i + 1) % ring.length) * 2;
-        indices.push(0, b, a, 1, a + 1, b + 1, a, b, a + 1, a + 1, b, b + 1);
+        const a = i * 2, b = ((i + 1) % ring.length) * 2;
+        indices.push(a, a + 1, b, a + 1, b + 1, b);
       }
-      for (const p of ring) for (const side of [-1,1]) {
+      for (let i = 0; i < ring.length; i++) for (const side of [-1,1]) {
         const y = level + side * (half + .012);
-        lines.push(hub.x, y, hub.z, p.x, y, p.z);
+        const p = ring[i], next = ring[(i + 1) % ring.length];
+        lines.push(p.x, y, p.z, next.x, y, next.z);
       }
       if (!mesh.geometry.attributes.position) {
         mesh.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); mesh.geometry.setIndex(indices);
@@ -48,16 +51,20 @@ export class FanPartitions extends THREE.Group {
   }
 
   setDeployed(deployed, immediate = false) {
-    this.target = deployed ? fit.amount : 0;
+    // The manual preview remains usable when the calculated minimum is zero.
+    this.target = deployed ? 1 : 0;
     if (immediate) this.setAmount(this.target);
   }
   update(delta) {
     if (Math.abs(this.amount - this.target) < 1e-6) return false;
     const step = Math.min(.1, delta) / PARTITIONS.duration;
-    this.setAmount(this.amount + Math.sign(this.target - this.amount) * Math.min(step, Math.abs(this.target - this.amount)));
+    const distance = Math.abs(this.target - this.amount);
+    this.setAmount(distance <= step + 1e-9 ? this.target : this.amount + Math.sign(this.target - this.amount) * step);
     return true;
   }
   getState() {
-    return { amount: this.amount, deployed: this.target > 0, recommendedAmount: fit.amount, moving: Math.abs(this.amount - this.target) > 1e-6, levels: [...PARTITIONS.levels] };
+    return { amount: this.amount, deployed: this.target > 0, recommendedAmount: fit.amount,
+      projectionMetres: this.amount * PARTITIONS.maximumProjection, maximumProjectionMetres: PARTITIONS.maximumProjection,
+      moving: Math.abs(this.amount - this.target) > 1e-6, levels: [...PARTITIONS.levels] };
   }
 }

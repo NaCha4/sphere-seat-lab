@@ -1,13 +1,15 @@
 {
-  "amount": 1,
-  "required": 0.9812022944087186,
-  "crossingSamples": 205991,
+  "amount": 0,
+  "required": 0,
+  "projectionMetres": 0,
+  "crossingSamples": 0,
   "unshieldable": 0,
   "seats": 3760,
   "viewField": {
     "verticalDegrees": 72,
     "horizontalDegrees": 100
   },
+  "scope": "upper-seated-view-only",
   "groups": [
     {
       "id": 1,
@@ -15,7 +17,8 @@
       "seats": 1740,
       "minimumPitch": -7.302557865934737,
       "maximumPitch": 21.06084480422756,
-      "crossingSamples": 205991
+      "crossingSamples": 205991,
+      "protectionRequired": false
     },
     {
       "id": 2,
@@ -23,7 +26,8 @@
       "seats": 2020,
       "minimumPitch": 55,
       "maximumPitch": 55,
-      "crossingSamples": 0
+      "crossingSamples": 0,
+      "protectionRequired": true
     }
   ]
 }

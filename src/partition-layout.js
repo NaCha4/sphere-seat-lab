@@ -3,49 +3,43 @@ import footprint from './data/partition-footprint.json' with { type: 'json' };
 
 // Concept dimensions, not structural/mechanism specifications.
 export const PARTITIONS = Object.freeze({
-  levels: Object.freeze([PARTITION_HEIGHT]), thickness: .05,
-  halfWidth: 65.7, rearZ: 64.7, frontZ: -61,
-  hubX: footprint.hub.x, hubZ: footprint.hub.z,
-  duration: 1.8, blades: 40,
+  // Screen division and mounting heights are independent.
+  levels: Object.freeze([...new Set(footprint.segments.map(s => s.y))]),
+  boundary: PARTITION_HEIGHT, thickness: .05, duration: 1.2,
+  maximumProjection: footprint.maximumProjectionMetres,
 });
 
 export const SCREEN_BANDS = VIEW_ZONES;
 
 export const bandForTier = tier => SCREEN_BANDS.find(b => b.tiers.includes(tier));
 
-// The convex envelope of crossing sightlines, with a 1m edge allowance.
-// Radial retraction into the local hub is only a schematic mechanism.
-export function fanRing(amount) {
-  const open = Math.max(0, Math.min(1, amount));
-  const scale = .012 + .988 * open;
-  return footprint.vertices.map(p => ({
-    x: PARTITIONS.hubX + (p.x - PARTITIONS.hubX) * scale,
-    z: PARTITIONS.hubZ + (p.z - PARTITIONS.hubZ) * scale,
-  }));
+export function partitionPanels(amount = 1) {
+  const length = Math.max(0, Math.min(1, amount)) * PARTITIONS.maximumProjection;
+  return footprint.segments.map(segment => ({ ...segment, length, ring: [
+    segment.a, segment.b,
+    { x: segment.b.x + segment.normal.x * length, z: segment.b.z + segment.normal.z * length },
+    { x: segment.a.x + segment.normal.x * length, z: segment.a.z + segment.normal.z * length },
+  ] }));
 }
 
-export const fanRings = amount => PARTITIONS.levels.map(level => fanRing(amount, level));
-
-// Smallest radial deployment that covers this ray at the separator plane.
-// Infinity means the ray cannot be intercepted by this panel's footprint.
-export function requiredPartitionAmount(origin, target, ring = fanRing(1)) {
+// Solve a ray against the rooted rectangular blades. A ray outside their
+// sweep is unshieldable; it must not silently become a zero-length success.
+export function requiredPartitionAmount(origin, target) {
   const dy = target.y - origin.y;
-  if (Math.abs(dy) < 1e-9) return 0;
-  const t = (PARTITION_HEIGHT - origin.y) / dy;
-  if (t <= 0 || t >= 1) return 0;
-  const px = origin.x + (target.x - origin.x) * t - PARTITIONS.hubX;
-  const pz = origin.z + (target.z - origin.z) * t - PARTITIONS.hubZ;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i+1)%ring.length];
-    const ax = a.x - PARTITIONS.hubX, bx = b.x - PARTITIONS.hubX;
-    const az = a.z - PARTITIONS.hubZ, bz = b.z - PARTITIONS.hubZ;
-    const det = ax * bz - az * bx;
-    if (Math.abs(det) < 1e-9) continue;
-    const u = (px * bz - pz * bx) / det;
-    const v = (ax * pz - az * px) / det;
-    if (u >= -1e-8 && v >= -1e-8) return Math.max(0, (u + v - .012) / .988);
+  if (Math.abs(dy) < 1e-9) return Infinity;
+  let required = Infinity;
+  for (const s of footprint.segments) {
+    const t = (s.y - origin.y) / dy;
+    if (t <= 0 || t >= 1) continue;
+    const px = origin.x + (target.x - origin.x) * t - s.a.x;
+    const pz = origin.z + (target.z - origin.z) * t - s.a.z;
+    const along = (px * (s.b.x - s.a.x) + pz * (s.b.z - s.a.z)) / s.width;
+    const forward = px * s.normal.x + pz * s.normal.z;
+    if (along >= -1e-8 && along <= s.width + 1e-8 && forward >= -1e-8 && forward <= PARTITIONS.maximumProjection + 1e-8) {
+      required = Math.min(required, Math.max(0, forward) / PARTITIONS.maximumProjection);
+    }
   }
-  return Infinity;
+  return required;
 }
 
 function inTriangleXZ(p, a, b, c) {
@@ -54,17 +48,15 @@ function inTriangleXZ(p, a, b, c) {
   return !((x < -1e-7 || y < -1e-7 || z < -1e-7) && (x > 1e-7 || y > 1e-7 || z > 1e-7));
 }
 
-export function partitionBlocksSegment(origin, target, amount = 1, rings = fanRings(amount)) {
+export function partitionBlocksSegment(origin, target, amount = 1, panels = partitionPanels(amount)) {
+  if (amount <= 0) return false;
   const dy = target.y - origin.y;
   if (Math.abs(dy) < 1e-9) return false;
-  for (const [index, y] of PARTITIONS.levels.entries()) {
-    const ring = rings[index];
+  for (const { y, ring } of panels) {
     const t = (y - origin.y) / dy;
     if (t <= 0 || t >= 1) continue;
     const p = { x: origin.x + (target.x - origin.x) * t, z: origin.z + (target.z - origin.z) * t };
-    for (let i = 0; i < ring.length; i++) {
-      if (inTriangleXZ(p, { x: PARTITIONS.hubX, z: PARTITIONS.hubZ }, ring[i], ring[(i+1)%ring.length])) return true;
-    }
+    if (inTriangleXZ(p, ring[0], ring[1], ring[2]) || inTriangleXZ(p, ring[0], ring[2], ring[3])) return true;
   }
   return false;
 }

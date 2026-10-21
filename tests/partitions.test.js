@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { BUILDING, makeLayout, resolveSeat } from '../src/layout.js';
-import { PARTITIONS, SCREEN_BANDS, bandForTier, bandFrame, bandVideoUV, bandSurfacePoint, partitionBlocksSegment, requiredPartitionAmount, fanRing } from '../src/partition-layout.js';
+import { PARTITIONS, SCREEN_BANDS, bandForTier, bandFrame, bandVideoUV, bandSurfacePoint, partitionBlocksSegment, requiredPartitionAmount, partitionPanels } from '../src/partition-layout.js';
 import atlas from '../src/data/band-video.json' with { type: 'json' };
 import { createScreenGeometry } from '../src/screen-geometry.js';
 import { FanPartitions } from '../src/fan-partitions.js';
@@ -17,14 +17,14 @@ import footprint from '../src/data/partition-footprint.json' with { type: 'json'
 
 const layout = makeLayout('fan-v2');
 
-test('two recliner zones have different poses and one separator between their eye envelopes', () => {
+test('two recliner zones retain their poses and screen boundary', () => {
   assert.equal(layout.seats.length,3760);
   assert.equal(SCREEN_BANDS.length,2);
-  assert.deepEqual(PARTITIONS.levels,[24.4]);
+  assert.equal(PARTITIONS.boundary,24.4);
   for (const seat of layout.seats) {
     const band = bandForTier(seat.tier), eye = seatEye(seat).y;
-    const lower = band.id === 1 ? -Infinity : PARTITIONS.levels[band.id - 2];
-    const upper = band.id === 2 ? Infinity : PARTITIONS.levels[band.id - 1];
+    const lower = band.id === 1 ? -Infinity : PARTITIONS.boundary;
+    const upper = band.id === 2 ? Infinity : PARTITIONS.boundary;
     assert.equal(seat.recliner,true);
     assert.ok(Math.abs(seat.backAngle*180/Math.PI-(seat.tier<300?20:55))<1e-8);
     if(seat.tier>=300)assert.ok(seat.viewPitch*180/Math.PI>23);
@@ -32,7 +32,6 @@ test('two recliner zones have different poses and one separator between their ey
     else assert.ok(Math.abs(seat.viewPitch*180/Math.PI-55)<1e-8);
     assert.ok(eye - .2 > lower + PARTITIONS.thickness, seat.id);
     assert.ok(eye + .2 < upper - PARTITIONS.thickness, seat.id);
-    assert.ok(Math.abs(seat.x) < PARTITIONS.halfWidth && seat.z < PARTITIONS.rearZ && seat.z > PARTITIONS.frontZ);
   }
 });
 
@@ -81,18 +80,17 @@ test('wide band movies cover the complete curved LED without side or height lett
   }
 });
 
-test('folded, partial and deployed fan membranes remain closed solids with reusable geometry', () => {
+test('seat-edge blades are closed solids, retract into the gallery and reuse their geometry', () => {
   const fans = new FanPartitions(), geometry = fans.membranes[0].mesh.geometry;
-  assert.equal(fans.membranes.length,1);
+  assert.equal(fans.membranes.length,footprint.segments.length);
   assert.equal(fans.getState().amount,0);
-  for (const amount of [0,.3,1]) {
+  assert.ok(fans.membranes.every(({mesh,ribs})=>!mesh.visible&&!ribs.visible));
+  for (const amount of [.3,1]) {
     fans.setAmount(amount);
     for (const {mesh} of fans.membranes) {
       const p = mesh.geometry.attributes.position, idx = mesh.geometry.index.array, edges = new Map();
-      if (amount === 1) for (let i = 0; i < p.count; i++) {
-        assert.ok(Math.hypot(p.getX(i),p.getZ(i),p.getY(i)-BUILDING.centerY) < BUILDING.diameter/2, 'unfolded panels must not poke through the exterior');
-      }
       let volume = 0;
+      for (let i=0;i<p.count;i++) assert.ok(Math.hypot(p.getX(i),p.getZ(i),p.getY(i)-BUILDING.centerY)<BUILDING.diameter/2);
       for(let i=0;i<idx.length;i+=3){
         const [a,b,c] = [...idx.slice(i,i+3)];
         const x=new THREE.Vector3().fromBufferAttribute(p,a), y=new THREE.Vector3().fromBufferAttribute(p,b), z=new THREE.Vector3().fromBufferAttribute(p,c);
@@ -101,78 +99,90 @@ test('folded, partial and deployed fan membranes remain closed solids with reusa
         for(const [u,v] of [[a,b],[b,c],[c,a]]){const key=u<v?`${u}/${v}`:`${v}/${u}`, value=edges.get(key)??[0,0];value[0]++;value[1]+=u<v?1:-1;edges.set(key,value);}
       }
       for(const edge of edges.values()) assert.deepEqual(edge,[2,0]);
-      assert.ok(volume>0);
+      assert.ok(volume>0,'outward-facing watertight blade');
     }
   }
-  assert.equal(fans.membranes[0].mesh.geometry,geometry,'animation reuses the GPU geometry');
+  assert.equal(fans.membranes[0].mesh.geometry,geometry);
   fans.setDeployed(false);
   for(let i=0;i<40;i++)fans.update(.05);
-  assert.equal(fans.getState().amount,0);assert.equal(fans.getState().moving,false);
+  assert.equal(fans.getState().amount,0);
   fans.setDeployed(true);
   for(let i=0;i<40;i++)fans.update(.05);
-  assert.equal(fans.getState().amount,fit.amount);assert.equal(fans.getState().moving,false);
-  fans.setAmount(.5);fans.target=.5;assert.equal(fans.getState().deployed,true);
+  assert.equal(fans.getState().projectionMetres,2);
+  assert.equal(fans.getState().recommendedAmount,0,'manual preview differs from the calculated minimum');
   fans.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});
 });
 
-test('deployed physical meshes block other bands from every section while own-band rays stay clear', () => {
-  const fans = new FanPartitions(); fans.setDeployed(true,true); fans.updateMatrixWorld(true);
-  const meshes = fans.membranes.map(p=>p.mesh), ray = new THREE.Raycaster();
-  for (const section of layout.sections) {
-    const rows=[section.range.first,Math.round((section.range.first+section.range.last)/2),section.range.last];
-    for(const row of rows){
-      const s=resolveSeat(layout,{section:section.id,row}), own=bandForTier(s.tier);
-      const eye=seatEye(s), origin=new THREE.Vector3(eye.x,eye.y,eye.z);
-      for(const band of SCREEN_BANDS){
-        const targets=bandTargets(band);
-        const visibleTargets=targets.filter(p=>withinDefaultView(s,p,eye));
-        for(const target of visibleTargets.filter((_,i)=>i%Math.max(1,Math.floor(visibleTargets.length/5))===0)){
-          const end=new THREE.Vector3(target.x,target.y,target.z), direction=end.clone().sub(origin);
-          ray.set(origin,direction.clone().normalize());ray.near=.001;ray.far=direction.length()-.001;
-          const blocked=ray.intersectObjects(meshes).length>0;
-          assert.equal(blocked,band.id!==own.id,`${s.id} -> band ${band.id}`);
-          assert.equal(blocked,partitionBlocksSegment(origin,end,fit.amount));
-        }
-      }
+test('blades start at gallery banks, keep aisles open and cannot span the auditorium', async () => {
+  const {rowPath,rowGeometry} = await import('../src/layout.js');
+  const {bankBounds} = await import('../src/bowl-geometry.js');
+  const panels=partitionPanels(1);
+  for(const section of layout.sections.filter(s=>s.tier.id===300)) {
+    const front=section.range.first-section.tier.rowStep/2, bounds=bankBounds(section,front);
+    const path=rowPath(section.tier,front,bounds.start,bounds.end), own=panels.filter(p=>p.section===section.id);
+    assert.equal(own.length,path.length-1);
+    for(const [i,p] of own.entries()) {
+      assert.deepEqual(p.a,{x:path[i].x,z:path[i].z});
+      assert.deepEqual(p.b,{x:path[i+1].x,z:path[i+1].z});
+      assert.equal(p.y,rowGeometry(section.tier,section.range.first).floorY-.08);
+      for(const [root,tip] of [[p.a,p.ring[3]],[p.b,p.ring[2]]]) assert.ok(Math.abs(Math.hypot(tip.x-root.x,tip.z-root.z)-2)<1e-9);
     }
   }
-  for(const tier of [106,206,306,406]){
-    const seat=resolveSeat(layout,{section:tier,row:10});
-    const closed=evaluatePartitions(seat,0);
-    assert.ok(closed.otherSamples>=0&&closed.otherSamples<=425);
-    const open=evaluatePartitions(seat,fit.amount);assert.equal(open.leakage,0);assert.equal(open.ownBlocked,0);
+  assert.ok(footprint.area<250);
+  assert.ok(footprint.area/footprint.previousPanelArea<.05);
+});
+
+test('analytic interception agrees with physical blades, including the zero-length state', () => {
+  const fans=new FanPartitions(), panel=partitionPanels(1)[14];
+  const px=(panel.a.x+panel.b.x)/2+panel.normal.x, pz=(panel.a.z+panel.b.z)/2+panel.normal.z;
+  const origin=new THREE.Vector3(px,panel.y+1,pz), target=new THREE.Vector3(px,panel.y-1,pz);
+  assert.ok(Math.abs(requiredPartitionAmount(origin,target)-.5)<1e-8);
+  for(const amount of [0,.4,.6,1]) {
+    fans.setAmount(amount); fans.updateMatrixWorld(true);
+    const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),.001,1.999);
+    const meshes=fans.membranes.map(m=>m.mesh).filter(m=>m.visible);
+    const blocked=ray.intersectObjects(meshes).length>0;
+    assert.equal(blocked,amount>.5);
+    assert.equal(partitionBlocksSegment(origin,target,amount),blocked);
   }
-  const result=compareWorlds({worldId:'fan-v2',selection:{section:206,row:10},partitionAmount:1});
-  assert.equal(result.partition.leakage,0);
+  assert.equal(requiredPartitionAmount({x:0,y:80,z:-45},{x:0,y:0,z:-45}),Infinity);
   fans.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});
 });
 
-test('recommended deployment fits every selectable seat and stays consistent with the offline data', () => {
+test('only upper seated views determine the minimum; lower peripheral exposure remains visible', () => {
   const actual=fitPartitionToViews(layout);
   assert.deepEqual(actual,fit);
+  assert.equal(actual.scope,'upper-seated-view-only');
   assert.equal(actual.unshieldable,0);
-  assert.ok(actual.crossingSamples>0);
-  assert.ok(actual.required<=actual.amount&&actual.required>actual.amount-.05);
-  assert.ok(footprint.area<5100,'remove the unused rear area of the original 15,156m² fan');
-  assert.equal(footprint.marginMetres,1);
+  assert.equal(actual.crossingSamples,0);
+  assert.equal(actual.amount,0);
+  assert.equal(actual.projectionMetres,0);
   assert.equal(actual.groups[0].seats,1740);assert.equal(actual.groups[1].seats,2020);
-  assert.ok(actual.groups[1].crossingSamples<actual.groups[0].crossingSamples);
+  assert.ok(actual.groups[0].crossingSamples>0);
+  assert.equal(actual.groups[0].protectionRequired,false);
+  assert.equal(actual.groups[1].protectionRequired,true);
   const lower=resolveSeat(layout,{section:206,row:10});
-  assert.ok(evaluatePartitions(lower,.4).leakage>0,'partial coverage must not silently hide the other video');
+  assert.ok(evaluatePartitions(lower,0).leakage>0,'do not hide upper video in software');
+  const upper=compareWorlds({worldId:'fan-v2',selection:{section:306,row:10},partitionAmount:0});
+  assert.equal(upper.partition.leakage,0);
 });
 
-test('the reduced footprint also covers an independent denser grid for every seat', () => {
-  const ring=fanRing(1), targets=SCREEN_BANDS.map(band=>Array.from({length:41*33},(_,i)=>
-    bandSurfacePoint(band,.001+(i%41)/40*.998,.001+Math.floor(i/41)/32*.998,BUILDING.screen)));
-  const missed=[]; let checked=0;
-  for(const seat of layout.seats){
-    const eye=seatEye(seat), other=targets[seat.viewZone===1?1:0];
-    for(const p of other){
-      if(!withinDefaultView(seat,p,eye))continue;
-      checked++;
-      if(requiredPartitionAmount(eye,p,ring)>1+1e-8&&missed.length<5)missed.push(seat.id);
+test('every seat keeps its own screen with fully extended physical blades', () => {
+  const targets=SCREEN_BANDS.map(bandTargets), panels=partitionPanels(1);
+  for(const seat of layout.seats) {
+    const eye=seatEye(seat);
+    for(const target of targets[seat.viewZone-1]) {
+      if(withinDefaultView(seat,target,eye)) assert.equal(partitionBlocksSegment(eye,target,1,panels),false,seat.id);
     }
   }
-  assert.ok(checked>footprint.sampledRays);
-  assert.deepEqual(missed,[]);
+});
+
+test('independent dense screen sampling confirms upper seated views need no partition', () => {
+  const targets=Array.from({length:41*33},(_,i)=>bandSurfacePoint(SCREEN_BANDS[0],.001+(i%41)/40*.998,.001+Math.floor(i/41)/32*.998,BUILDING.screen));
+  let checked=0;
+  for(const seat of layout.seats.filter(s=>s.tier>=300)) {
+    const eye=seatEye(seat); checked++;
+    for(const p of targets) assert.equal(withinDefaultView(seat,p,eye),false,seat.id);
+  }
+  assert.equal(checked,2020);
 });

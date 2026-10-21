@@ -8,7 +8,7 @@ export function createBandScreenMaterial(texture, ready, screen, { panoramic = f
     name: panoramic ? 'Full-width landscape / horizon fit' : 'Full-width curved bands / one synchronized video atlas',
     uniforms: {
       uMovie: { value: texture }, uReady: { value: ready ? 1 : 0 }, uOpacity: { value: 1 },
-      uBoundary: { value: PARTITIONS.levels[0] },
+      uBoundary: { value: PARTITIONS.boundary },
       uBands: { value: SCREEN_BANDS.map(b => new THREE.Vector2(panoramic ? 0 : b.bottom, panoramic ? screen.centerY+screen.radius : b.top)) },
       uAtlas: { value: atlas.bands.map(b => new THREE.Vector2(panoramic ? 0 : b.offset, panoramic ? 1 : b.scale)) },
       uVideoSize: { value: new THREE.Vector2(panoramic ? 3840 : atlas.width, panoramic ? 1920 : atlas.height) },

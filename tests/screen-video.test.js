@@ -118,7 +118,7 @@ test('the decoded movie replaces the loading image without resetting overview or
       model.select(resolveSeat(model.layout,{section,row:10}));
       assert.equal(model.screenMaterial,material,'both zones share two rendered frames; no camera-dependent screen hiding');
     }
-    model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,fit.amount);
+    model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,1,'manual preview extends the seat-edge blades');
     model.setPartitionAmount(.6);
     assert.equal(model.getPartitionState().deployed,true);
     model.setScreen('aurora'); assert.equal(model.screenMode,'video','this experimental world keeps two synchronized videos');

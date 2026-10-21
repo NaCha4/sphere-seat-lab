@@ -1,7 +1,7 @@
 import { BUILDING } from './layout.js';
 import { seatEye } from './seating-pose.js';
 import { VIEW_FIELD } from './view-zones.js';
-import { SCREEN_BANDS, bandForTier, bandSurfacePoint, fanRings, partitionBlocksSegment } from './partition-layout.js';
+import { SCREEN_BANDS, bandForTier, bandSurfacePoint, partitionPanels, partitionBlocksSegment } from './partition-layout.js';
 
 export const BAND_SAMPLE_COUNT = 25 * 17;
 export function bandTargets(band) {
@@ -22,14 +22,14 @@ export function withinDefaultView(seat, target, eye = seatEye(seat)) {
 }
 
 export function evaluatePartitions(seat, amount = 0) {
-  const own = bandForTier(seat.tier), rings = fanRings(amount);
+  const own = bandForTier(seat.tier), panels = partitionPanels(amount);
   const eye = seatEye(seat);
   const bands = SCREEN_BANDS.map(band => {
     const targets = bandTargets(band).filter(p => withinDefaultView(seat, p, eye));
-    const blocked = targets.filter(p => partitionBlocksSegment(eye, p, amount, rings)).length;
+    const blocked = targets.filter(p => partitionBlocksSegment(eye, p, amount, panels)).length;
     return { id: band.id, label: band.label, samples: targets.length, totalSamples: BAND_SAMPLE_COUNT, blocked, visible: targets.length - blocked };
   });
-  return { amount, ownBand: own.id, bands, viewField: VIEW_FIELD,
+  return { amount, ownBand: own.id, bands, viewField: VIEW_FIELD, protectionRequired: own.id === 2,
     backDegrees: (seat.backAngle ?? 0) * 180 / Math.PI,
     pitchDegrees: (seat.viewPitch ?? 0) * 180 / Math.PI,
     ownBlocked: bands.find(b => b.id === own.id).blocked,
