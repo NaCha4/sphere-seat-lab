@@ -35,7 +35,7 @@ export class FanPartitions extends THREE.Group {
     const half = PARTITIONS.thickness / 2, panels = partitionPanels(Math.max(.0001, this.amount));
     for (const [index, { mesh, ribs, skirt, infill, level }] of this.membranes.entries()) {
       mesh.visible = ribs.visible = infill.visible = this.amount > 0;
-      skirt.visible = this.amount > 0 && (this.membranes[index].panel.a.mountY > level || this.membranes[index].panel.b.mountY > level);
+      skirt.visible = this.amount > 0 && (Math.abs(this.membranes[index].panel.a.mountY-this.membranes[index].panel.a.y)>1e-6 || Math.abs(this.membranes[index].panel.b.mountY-this.membranes[index].panel.b.y)>1e-6);
       const ring = panels[index].ring;
       const positions = [], indices = [], lines = [];
       for (const p of ring) positions.push(p.x, p.y + half, p.z, p.x, p.y - half, p.z);

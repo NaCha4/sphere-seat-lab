@@ -135,28 +135,30 @@ test('blades stay rooted at gallery banks and allow the requested 100m manual re
     for(const [i,p] of own.entries()) {
       assert.deepEqual({x:p.a.x,z:p.a.z},{x:path[i].x,z:path[i].z});
       assert.deepEqual({x:p.b.x,z:p.b.z},{x:path[i+1].x,z:path[i+1].z});
-      assert.equal(p.y,footprint.lowerLineY);
+      assert.equal(p.y,(p.a.y+p.b.y)/2);
       assert.equal(p.a.mountY,rowGeometry(section.tier,section.range.first).floorY-.08);
-      for(const [root,tip] of [[p.ring[0],p.ring[3]],[p.ring[1],p.ring[2]]]) assert.ok(Math.abs(Math.hypot(tip.x-root.x,tip.z-root.z)-100)<1e-9);
-      assert.ok(Math.abs(p.ring[3].y-p.a.y-100*Math.tan(Math.PI/12))<1e-9);
+      for(const [root,tip] of [[p.ring[0],p.ring[3]],[p.ring[1],p.ring[2]]]) {
+        const run=root.z-tip.z;
+        assert.ok(run>=100*Math.cos(50*Math.PI/180)-1e-6 && run<=100+1e-6);
+        assert.ok(Math.abs(tip.y-root.y-run*Math.tan(Math.PI/12))<1e-9);
+      }
     }
   }
   assert.ok(panels.some(p=>p.ring.some(tip=>Math.hypot(tip.x,tip.z, p.y-BUILDING.centerY)>BUILDING.diameter/2)),'manual reach is not clipped at the building');
 });
 
-test('the lower datum removes the central notch and the raised gallery attachment is opaque', () => {
+test('the rounded tip and gallery infill stay on one rising plane without a flat lead-in', () => {
   const fans=new FanPartitions(); fans.setAmount(.4); fans.updateMatrixWorld(true);
   const panels=partitionPanels(.4);
   assert.equal(footprint.lowerLineY,24.5);
   for(const p of panels) {
-    assert.equal(p.a.y,24.5); assert.equal(p.b.y,24.5);
-    assert.equal(p.ring[2].y,p.ring[3].y);
-    assert.ok(Math.abs(p.ring[2].y-(24.5+40*Math.tan(Math.PI/12)))<1e-9);
+    for(const point of [...p.ring,...p.infillRing]) assert.ok(Math.abs(point.y-(24.5+(footprint.rearBaselineZ-point.z)*Math.tan(Math.PI/12)))<1e-9);
     assert.equal(p.ring[0].z,footprint.frontBaselineZ);
     assert.equal(p.ring[1].z,footprint.frontBaselineZ);
-    assert.equal(p.ring[2].z,footprint.frontBaselineZ-40);
-    assert.equal(p.ring[3].z,footprint.frontBaselineZ-40);
   }
+  const tips=panels.flatMap(p=>p.ring.slice(2));
+  const middle=tips.reduce((a,b)=>Math.abs(a.x)<Math.abs(b.x)?a:b),edge=tips[0];
+  assert.ok(middle.z<edge.z-5,'tip is rounded for the 100-degree field instead of a straight cut');
   const p=panels.find(p=>p.section===306&&!p.bridge);
   const x=(p.a.x+p.b.x)/2,z=(p.a.z+p.b.z)/2,y=(p.a.y+p.a.mountY)/2;
   const origin=new THREE.Vector3(x,y,z+2),target=new THREE.Vector3(x,y,z-2);
@@ -169,9 +171,10 @@ test('the lower datum removes the central notch and the raised gallery attachmen
 test('analytic interception agrees with physical blades, including the zero-length state', () => {
   const fans=new FanPartitions(), panel=partitionPanels(1).find(p=>p.section===304&&!p.bridge);
   const px=(panel.a.x+panel.b.x)/2, pz=footprint.frontBaselineZ-1;
-  const origin=new THREE.Vector3(px,panel.y+1,pz), target=new THREE.Vector3(px,panel.y-1,pz);
-  const fraction=1/PARTITIONS.maximumProjection;
-  assert.ok(Math.abs(requiredPartitionAmount(origin,target)-fraction)<1e-8);
+  const y=footprint.lowerLineY+(footprint.rearBaselineZ-pz)*Math.tan(Math.PI/12);
+  const origin=new THREE.Vector3(px,y+1,pz), target=new THREE.Vector3(px,y-1,pz);
+  const fraction=requiredPartitionAmount(origin,target);
+  assert.ok(fraction>0&&fraction<.02);
   for(const amount of [0,fraction*.8,fraction*1.2,1]) {
     fans.setAmount(amount); fans.updateMatrixWorld(true);
     const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),.001,1.999);
@@ -188,7 +191,8 @@ test('the seating-to-straight-edge infill also blocks rays behind the sliding sh
   const fans=new FanPartitions(); fans.setAmount(.2); fans.updateMatrixWorld(true);
   const panels=partitionPanels(.2),p=panels.find(p=>p.section===306&&!p.bridge);
   const x=(p.a.x+p.b.x)/2, z=(p.a.z+p.b.z+2*footprint.frontBaselineZ)/4;
-  const origin=new THREE.Vector3(x,p.a.y+2,z),target=new THREE.Vector3(x,p.a.y-2,z);
+  const y=footprint.lowerLineY+(footprint.rearBaselineZ-z)*Math.tan(Math.PI/12);
+  const origin=new THREE.Vector3(x,y+2,z),target=new THREE.Vector3(x,y-2,z);
   assert.equal(partitionBlocksSegment(origin,target,.2,panels),true);
   const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),.001,3.999);
   assert.ok(ray.intersectObjects(fans.membranes.map(m=>m.infill)).length>0);

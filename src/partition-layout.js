@@ -1,11 +1,11 @@
-import { PARTITION_HEIGHT, VIEW_ZONES } from './view-zones.js';
+import { PARTITION_HEIGHT, CANOPY_SLOPE_DEGREES, VIEW_ZONES, VIEW_FIELD } from './view-zones.js';
 import footprint from './data/partition-footprint.json' with { type: 'json' };
 
 // Concept dimensions, not structural/mechanism specifications.
 export const PARTITIONS = Object.freeze({
   // Screen division and mounting heights are independent.
   levels: Object.freeze([...new Set(footprint.segments.map(s => s.y))]),
-  boundary: PARTITION_HEIGHT, thickness: .05, duration: 1.2, slopeDegrees: 15,
+  boundary: PARTITION_HEIGHT, thickness: .05, duration: 1.2, slopeDegrees: CANOPY_SLOPE_DEGREES,
   maximumProjection: footprint.maximumProjectionMetres,
 });
 
@@ -20,14 +20,18 @@ export function partitionAmountForLength(metres) {
 
 export function partitionPanels(amount = 1, slopeDegrees = PARTITIONS.slopeDegrees) {
   const length = Math.max(0, Math.min(1, amount)) * PARTITIONS.maximumProjection;
-  const rise = length * Math.tan(slopeDegrees * Math.PI / 180);
-  return footprint.segments.map(segment => ({ ...segment, length,
-    infillRing: [segment.a,segment.b,{...segment.b,z:footprint.frontBaselineZ},{...segment.a,z:footprint.frontBaselineZ}],
-    mountRing: [segment.a,segment.b,{...segment.b,y:segment.b.mountY},{...segment.a,y:segment.a.mountY}], ring: [
-    {...segment.a,z:footprint.frontBaselineZ}, {...segment.b,z:footprint.frontBaselineZ},
-    { x: segment.b.x, y: segment.b.y + rise, z: footprint.frontBaselineZ - length },
-    { x: segment.a.x, y: segment.a.y + rise, z: footprint.frontBaselineZ - length },
-  ] }));
+  const halfWidth=Math.max(...footprint.segments.flatMap(s=>[Math.abs(s.a.x),Math.abs(s.b.x)]));
+  const arcRadius=halfWidth/Math.sin(VIEW_FIELD.horizontalDegrees*Math.PI/360);
+  const point=(source,z=source.z)=>({...source,z,y:footprint.lowerLineY+(footprint.rearBaselineZ-z)*Math.tan(slopeDegrees*Math.PI/180)});
+  const tip=source=>point(source,footprint.frontBaselineZ-length*Math.sqrt(Math.max(0,1-(source.x/arcRadius)**2)));
+  return footprint.segments.map(segment => {
+    const a=point(segment.a),b=point(segment.b), baseA=point(a,footprint.frontBaselineZ),baseB=point(b,footprint.frontBaselineZ);
+    return {...segment,a,b,length,y:(a.y+b.y)/2,
+      infillRing:[a,b,baseB,baseA],
+      mountRing:[a,b,{...b,y:b.mountY},{...a,y:a.mountY}],
+      ring:[baseA,baseB,tip(b),tip(a)],
+    };
+  });
 }
 
 // Used only by the seated-view check, never to cap manual extension.
