@@ -7,7 +7,6 @@ import { Auditorium } from '../src/auditorium.js';
 import { createScreenGeometry } from '../src/screen-geometry.js';
 import { DomeMovie, fitSphericalVideo, SCREEN_MOVIE_URL, BAND_MOVIE_URL } from '../src/screen-video.js';
 import { VIDEO_PRESETS, getVideoPreset } from '../src/video-library.js';
-import fit from '../src/data/partition-fit.json' with { type: 'json' };
 
 class FakeVideo extends EventTarget {
   paused = true; ended = false; readyState = 0; duration = 20; currentTime = 0;
@@ -105,7 +104,7 @@ test('the decoded movie replaces the loading image without resetting overview or
       assert.equal(model.hovered[0].id,hover.id,'picking uses the replacement world');
     }
     model.setLayout(makeLayout('fan-v2'));
-    assert.equal(model.getPartitionState().amount,fit.amount,'start with fitted protection');
+    assert.equal(model.getPartitionState().amount,0,'start retracted for manual adjustment');
     assert.equal(model.movie,movie); assert.equal(model.screen,screen); assert.equal(video.currentTime,7.25);
     assert.equal(model.screenMaterial.uniforms.uMovie.value,texture);
     assert.equal(video.src,BAND_MOVIE_URL);

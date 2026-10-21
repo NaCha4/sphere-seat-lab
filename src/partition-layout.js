@@ -5,7 +5,7 @@ import footprint from './data/partition-footprint.json' with { type: 'json' };
 export const PARTITIONS = Object.freeze({
   // Screen division and mounting heights are independent.
   levels: Object.freeze([...new Set(footprint.segments.map(s => s.y))]),
-  boundary: PARTITION_HEIGHT, thickness: .05, duration: 1.2,
+  boundary: PARTITION_HEIGHT, thickness: .05, duration: 1.2, slopeDegrees: 15,
   maximumProjection: footprint.maximumProjectionMetres,
 });
 
@@ -13,50 +13,55 @@ export const SCREEN_BANDS = VIEW_ZONES;
 
 export const bandForTier = tier => SCREEN_BANDS.find(b => b.tiers.includes(tier));
 
-export function partitionPanels(amount = 1) {
+export function partitionAmountForLength(metres) {
+  if (!Number.isFinite(metres)) return null;
+  return Math.max(0, Math.min(PARTITIONS.maximumProjection, metres)) / PARTITIONS.maximumProjection;
+}
+
+export function partitionPanels(amount = 1, slopeDegrees = PARTITIONS.slopeDegrees) {
   const length = Math.max(0, Math.min(1, amount)) * PARTITIONS.maximumProjection;
+  const rise = length * Math.tan(slopeDegrees * Math.PI / 180);
   return footprint.segments.map(segment => ({ ...segment, length, ring: [
     segment.a, segment.b,
-    { x: segment.b.x + segment.normal.x * length, z: segment.b.z + segment.normal.z * length },
-    { x: segment.a.x + segment.normal.x * length, z: segment.a.z + segment.normal.z * length },
+    { x: segment.b.x + segment.normalB.x * length, y: segment.b.y + rise, z: segment.b.z + segment.normalB.z * length },
+    { x: segment.a.x + segment.normalA.x * length, y: segment.a.y + rise, z: segment.a.z + segment.normalA.z * length },
   ] }));
 }
 
-// Solve a ray against the rooted rectangular blades. A ray outside their
-// sweep is unshieldable; it must not silently become a zero-length success.
+// Used only by the seated-view check, never to cap manual extension.
 export function requiredPartitionAmount(origin, target) {
-  const dy = target.y - origin.y;
-  if (Math.abs(dy) < 1e-9) return Infinity;
-  let required = Infinity;
-  for (const s of footprint.segments) {
-    const t = (s.y - origin.y) / dy;
-    if (t <= 0 || t >= 1) continue;
-    const px = origin.x + (target.x - origin.x) * t - s.a.x;
-    const pz = origin.z + (target.z - origin.z) * t - s.a.z;
-    const along = (px * (s.b.x - s.a.x) + pz * (s.b.z - s.a.z)) / s.width;
-    const forward = px * s.normal.x + pz * s.normal.z;
-    if (along >= -1e-8 && along <= s.width + 1e-8 && forward >= -1e-8 && forward <= PARTITIONS.maximumProjection + 1e-8) {
-      required = Math.min(required, Math.max(0, forward) / PARTITIONS.maximumProjection);
-    }
+  if (!partitionBlocksSegment(origin,target,1)) return Infinity;
+  let low=0, high=1;
+  for (let i=0;i<32;i++) {
+    const mid=(low+high)/2;
+    if (partitionBlocksSegment(origin,target,mid)) high=mid;
+    else low=mid;
   }
-  return required;
+  return high;
 }
 
-function inTriangleXZ(p, a, b, c) {
-  const sign = (u, v, w) => (u.x - w.x) * (v.z - w.z) - (v.x - w.x) * (u.z - w.z);
-  const x = sign(p, a, b), y = sign(p, b, c), z = sign(p, c, a);
-  return !((x < -1e-7 || y < -1e-7 || z < -1e-7) && (x > 1e-7 || y > 1e-7 || z > 1e-7));
+function intersectsTriangle(origin, target, a, b, c) {
+  const dx=target.x-origin.x, dy=target.y-origin.y, dz=target.z-origin.z;
+  const ux=b.x-a.x, uy=b.y-a.y, uz=b.z-a.z, vx=c.x-a.x, vy=c.y-a.y, vz=c.z-a.z;
+  const px=dy*vz-dz*vy, py=dz*vx-dx*vz, pz=dx*vy-dy*vx;
+  const det=ux*px+uy*py+uz*pz;
+  if (Math.abs(det)<1e-10) return false;
+  const tx=origin.x-a.x, ty=origin.y-a.y, tz=origin.z-a.z;
+  const u=(tx*px+ty*py+tz*pz)/det;
+  if (u < -1e-8 || u > 1+1e-8) return false;
+  const qx=ty*uz-tz*uy, qy=tz*ux-tx*uz, qz=tx*uy-ty*ux;
+  const v=(dx*qx+dy*qy+dz*qz)/det;
+  if (v < -1e-8 || u+v > 1+1e-8) return false;
+  const t=(vx*qx+vy*qy+vz*qz)/det;
+  return t>1e-8 && t<1-1e-8;
 }
 
 export function partitionBlocksSegment(origin, target, amount = 1, panels = partitionPanels(amount)) {
   if (amount <= 0) return false;
-  const dy = target.y - origin.y;
-  if (Math.abs(dy) < 1e-9) return false;
-  for (const { y, ring } of panels) {
-    const t = (y - origin.y) / dy;
-    if (t <= 0 || t >= 1) continue;
-    const p = { x: origin.x + (target.x - origin.x) * t, z: origin.z + (target.z - origin.z) * t };
-    if (inTriangleXZ(p, ring[0], ring[1], ring[2]) || inTriangleXZ(p, ring[0], ring[2], ring[3])) return true;
+  for (const { ring } of panels) {
+    const lo=Math.min(ring[0].y,ring[1].y,ring[2].y,ring[3].y), hi=Math.max(ring[0].y,ring[1].y,ring[2].y,ring[3].y);
+    if (Math.min(origin.y,target.y)>hi || Math.max(origin.y,target.y)<lo) continue;
+    if (intersectsTriangle(origin,target,ring[0],ring[1],ring[2]) || intersectsTriangle(origin,target,ring[0],ring[2],ring[3])) return true;
   }
   return false;
 }

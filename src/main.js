@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Auditorium } from './auditorium.js';
 import { BUILDING, TIERS, PRESETS, rowPoint, rowPath, sectionAngles, makeLayout, resolveSeat, seatMetrics } from './layout.js';
 import { WORLDS, getWorld } from './worlds.js';
-import { bandForTier } from './partition-layout.js';
+import { bandForTier, partitionAmountForLength } from './partition-layout.js';
 import { seatEye } from './seating-pose.js';
 import { VIDEO_PRESETS, getVideoPreset } from './video-library.js';
 import partitionFootprint from './data/partition-footprint.json' with { type: 'json' };
@@ -32,7 +32,7 @@ app.innerHTML = `
   <div id="veil"></div>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Sphere Seat Lab 홈">${icon('sphere', 31)}<span>SPHERE<span class="brand-sub">SEAT LAB</span></span></a>
-    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 11</span><h1>좌석에서 만나는 스피어</h1></div>
+    <div class="project-heading"><span class="eyebrow">LAS VEGAS / RESEARCH MODEL 12</span><h1>좌석에서 만나는 스피어</h1></div>
     <div class="header-actions"><button class="icon-button" id="research" aria-label="모델 근거와 출처">${icon('info')}</button><button class="vr-button" id="vr">${icon('vr', 20)}<span>VR 시작</span></button></div>
   </header>
   <aside class="sidebar" aria-label="좌석과 보기 설정">
@@ -41,13 +41,14 @@ app.innerHTML = `
     <label class="field movie-field">재생 영상<select id="movie">${VIDEO_PRESETS.map(v => `<option value="${v.id}">${v.label}</option>`).join('')}</select></label>
     <p class="movie-credit" id="movie-credit" hidden><a id="movie-credit-link" target="_blank" rel="noopener noreferrer"></a></p>
     <section id="partition-controls" class="partition-controls" hidden>
-      <h3>객석 전면의 짧은 차양</h3><p>하부 1·2층 / 상부 3·4층<br>하부 등받이 20° · 상부 등받이 55°<br>상부 착석 시야만 차광 목표로 계산합니다.</p>
+      <h3>상향 차양 · 길이 조절</h3><p>하부 영상 상단: 36m · 기존 24.4m<br>차양은 스크린 쪽으로 15° 올라갑니다.<br>연결부까지 막아 틈을 없앴습니다.</p>
       <button id="partition-toggle" type="button">차양 수동 전개</button>
-      <button id="partition-fit" type="button">착석 시야 기준 최소 길이 적용</button>
+      <button id="partition-fit" type="button">완전히 접기 · 0m</button>
       <label class="partition-range">돌출 길이 <input id="partition-amount" type="range" min="0" max="${partitionFootprint.maximumProjectionMetres * 100}" step="5" value="0"><output id="partition-value">0.00m</output></label>
+      <div class="partition-length-controls"><button id="partition-shorter" type="button" aria-label="차양 10cm 줄이기">−10cm</button><label>직접 입력 <input id="partition-length" aria-label="차양 길이 (m)" type="number" min="0" max="${partitionFootprint.maximumProjectionMetres}" step="0.05" value="0.00" inputmode="decimal">m</label><button id="partition-longer" type="button" aria-label="차양 10cm 늘리기">+10cm</button><button id="partition-apply" type="button">입력 길이 적용</button></div>
       <p id="partition-status" role="status"></p>
       <div class="partition-views"><button data-band-view="0">1·2층 보기</button><button data-band-view="1">3·4층 보기</button></div>
-      <p>3층 객석 전면에서 화면 쪽으로만 0–${partitionFootprint.maximumProjectionMetres}m 돌출합니다. 객석 구역 사이 통로는 비워둡니다. 현재 상부 시야에는 하부 영상이 들어오지 않아 권장 길이는 0m입니다. 수동 최대 면적 약 ${Math.round(partitionFootprint.area)}㎡. 하부의 상부 영상 노출은 차단하지 않으며, 고개를 숙이거나 돌린 시야는 별도입니다.</p>
+      <p>객석 전면에서 시작하는 연속 차양입니다. 슬라이더 또는 숫자로 0–${partitionFootprint.maximumProjectionMetres}m를 직접 조절하세요. 길이는 수평 돌출 거리이며, 앞쪽 끝은 위로 올라갑니다. 스크린·건물 경계에서 멈추지 않습니다.</p>
     </section>
     <div class="view-tabs" role="group" aria-label="보기 방식"><button id="seat-view" class="active">${icon('eye', 16)}좌석 시점</button><button id="overview">${icon('cube', 16)}전체 구조</button></div>
     <div class="map-wrap"><svg id="seat-map" viewBox="0 0 300 218" role="img" aria-label="좌석 구역 지도"></svg><span class="map-caption">구역을 눌러 이동하세요</span></div>
@@ -68,7 +69,7 @@ app.innerHTML = `
     <p class="sidebar-note"><span id="movie-description">회전하는 네온 궤도와 확산하는 링으로 구성한 360° 모션그래픽입니다.</span><br>무음 반복 · 실제 공연 영상 아님<br>VR 메뉴: 오른손 A · 왼손 X<br>구조 구분: 검은 후방 천장 · 회갈색 객석 하부<br>숫자는 행 안의 가상 위치입니다.<br>2023 도면의 하부 평면을 반영했습니다.<br>높이와 상층 좌표는 추정입니다.</p>
   </aside>
   <main class="scene-ui">
-    <div class="scene-caption"><span class="tag">RESEARCH 11</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
+    <div class="scene-caption"><span class="tag">RESEARCH 12</span><span id="view-description">1인칭 · 드래그해서 둘러보기</span></div>
     <div class="scene-tools"><button id="reset" class="tool-button" title="시선 초기화">${icon('reset')}<span>시선 초기화</span></button><button id="screenshot" class="icon-button" title="현재 화면 이미지 저장" aria-label="현재 화면 이미지 저장">${icon('camera')}</button><button id="share" class="icon-button" title="현재 좌석 링크 복사" aria-label="현재 좌석 링크 복사">${icon('link')}</button></div>
     <div class="seat-card"><div class="seat-card-main"><span class="eyebrow" id="tier-name">TERRACE / 200 LEVEL</span><div><strong id="selected-section">206</strong><span id="selected-position">10행 · 13번</span></div><span class="seat-description" id="seat-description">중앙에서 무대와 화면을 함께 확인하세요.</span></div><div class="seat-stats"><div><span>전방 기준점까지</span><strong id="distance">—</strong></div><div><span>모델상 눈높이</span><strong id="height">—</strong></div><div><span>기준점 방향 차이</span><strong id="yaw">—</strong></div></div><div class="metrics-note">거리·각도는 추정 좌표의 계산값이며 실측값이 아닙니다.</div></div>
     <div class="bottom-line"><span class="interaction-hint" id="hint">마우스 드래그: 시선 이동 <span>·</span> 휠: 확대 <span>·</span> R: 초기화</span><button id="model-info">공개 자료 기반 재구성 ${icon('info', 13)}</button></div>
@@ -105,6 +106,7 @@ const raycaster = new THREE.Raycaster();
 let drag = null, yaw = currentSeat.yaw, pitch = .06, framePose = null, pendingVrAlign = false, vrSupported = false;
 const controllers = [], xrButtons = [], xrWorldButtons = [];
 let xrPanel = null, xrSummary = null, xrPartitionButton = null, xrVideoButton = null, worldPage = Math.floor(WORLDS.indexOf(currentWorld) / 2), lastStick = 0, lastAimUpdate = -Infinity;
+const xrPartitionStepButtons = [];
 let comparisonWorker = null, comparisonRequest = 0, comparisonResult = null, comparisonError = false;
 try {
   comparisonWorker = new Worker(new URL('./comparison-worker.js', import.meta.url), { type: 'module' });
@@ -349,6 +351,8 @@ function createXrPanel() {
     ['영상 재생/정지', toggleVideoPlayback],
     ['다음 영상', cycleVideoPreset],
     ['차양 접기/펼치기', togglePartitions],
+    ['차양 −25cm', shortenPartition],
+    ['차양 +25cm', lengthenPartition],
   ];
   actions.forEach(([text, action], i) => {
     const canvas = document.createElement('canvas'); canvas.width = 384; canvas.height = 144;
@@ -360,6 +364,7 @@ function createXrPanel() {
     mesh.position.set((column - 1) * .46, Math.floor(i / 3) * -.19, 0); mesh.userData.action = action; mesh.renderOrder = XR_OVERLAY_ORDER;
     xrPanel.add(mesh); xrButtons.push(mesh);
     if (action === togglePartitions) { xrPartitionButton = mesh; mesh.userData.canvas = canvas; }
+    if (action === shortenPartition || action === lengthenPartition) xrPartitionStepButtons.push(mesh);
     if (action === cycleVideoPreset) { xrVideoButton = mesh; mesh.userData.canvas = canvas; }
     if (i < 2) { mesh.userData.canvas = canvas; mesh.userData.slot = i; xrWorldButtons.push(mesh); }
   });
@@ -589,7 +594,7 @@ function initRenderer() {
     renderer.render(scene, camera);
   });
   // Small, read-only diagnostic surface for manual browser/Quest validation.
-  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-11', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
+  window.sphereLab = { getState: () => ({ seat: currentSeat, view, seats: layout.seats.length, sections: layout.sections.length, hoveredSeats: model.hovered.map(s => s.id), contentMode, video: model.getVideoState(), partitions: model.getPartitionState(), audienceEnabled, world: currentWorld.id, comparisonWorld: comparisonWorld.id, comparison: comparisonResult, modelRevision: 'research-12', menuVisible: Boolean(xrPanel?.visible), stageVisible: model.stageGroup.visible, accessibleInventory: 178, audienceCount: audienceEnabled ? layout.seats.length - 1 : 0, vrSupported, renderer: renderer.info, meters: true }), selectSeat: options => setSeat(resolveSeat(layout, options)), setWorld, setPartitions: deployed => { model.setPartitions(deployed, true); updatePartitionUI(); requestComparison(); }, setAudience: setAudienceEnabled, setView };
 }
 
 function visitBand(index) {
@@ -599,6 +604,7 @@ function visitBand(index) {
 
 function updatePartitionUI() {
   const active = Boolean(currentWorld.partitions), state = model?.getPartitionState();
+  for (const button of xrPartitionStepButtons) button.visible = active;
   if (xrPartitionButton) {
     xrPartitionButton.visible = active;
     const text = state?.deployed ? '차양 접기' : '차양 수동 전개';
@@ -618,8 +624,10 @@ function updatePartitionUI() {
   const band = bandForTier(currentSeat.tier), projection = state?.projectionMetres ?? 0;
   $('partition-toggle').textContent = state?.deployed ? '차양 접기' : '차양 수동 전개';
   $('partition-amount').value = Math.round(projection * 100); $('partition-value').value = `${projection.toFixed(2)}m`;
-  const recommended = state?.recommendedAmount;
-  $('partition-status').textContent = `${band.label} · 현재 ${projection.toFixed(2)}m · ${recommended == null ? '현 차양 범위로 차광 불가' : `착석 기준 최소 ${(recommended * partitionFootprint.maximumProjectionMetres).toFixed(2)}m`}${state?.moving ? ' · 움직이는 중' : ''}`;
+  $('partition-length').value = projection.toFixed(2);
+  $('partition-shorter').disabled = projection <= 0;
+  $('partition-longer').disabled = projection >= partitionFootprint.maximumProjectionMetres;
+  $('partition-status').textContent = `${band.label} · 현재 ${projection.toFixed(2)}m · 상향 ${state?.slopeDegrees ?? 15}°${state?.moving ? ' · 움직이는 중' : ''}`;
 }
 
 function togglePartitions() {
@@ -628,10 +636,30 @@ function togglePartitions() {
   updatePartitionUI(); requestComparison();
 }
 
+function setManualProjection(metres) {
+  if (!currentWorld.partitions) return;
+  const amount = partitionAmountForLength(metres);
+  if (amount !== null) model.setPartitionAmount(amount);
+  updatePartitionUI(); requestComparison(); updateXrSummary();
+}
+
+function changePartitionProjection(delta) {
+  const length = model?.getPartitionState()?.projectionMetres;
+  if (length != null) setManualProjection(Math.round((length + delta) * 100) / 100);
+}
+
+function shortenPartition() { changePartitionProjection(-.25); }
+function lengthenPartition() { changePartitionProjection(.25); }
+
 $('partition-toggle').addEventListener('click', togglePartitions);
-$('partition-fit').addEventListener('click', () => { const minimum = model?.getPartitionState()?.recommendedAmount; if (minimum != null) model.setPartitionAmount(minimum); updatePartitionUI(); requestComparison(); });
+$('partition-fit').addEventListener('click', () => setManualProjection(0));
 $('partition-amount').addEventListener('input', () => { model?.setPartitionAmount(Number($('partition-amount').value) / (partitionFootprint.maximumProjectionMetres * 100)); comparisonRequest++; comparisonResult = null; updatePartitionUI(); renderComparison(); updateXrSummary(); });
 $('partition-amount').addEventListener('change', requestComparison);
+$('partition-length').addEventListener('change', () => setManualProjection($('partition-length').valueAsNumber));
+$('partition-length').addEventListener('keydown', event => { if (event.key === 'Enter') setManualProjection($('partition-length').valueAsNumber); });
+$('partition-apply').addEventListener('click', () => setManualProjection($('partition-length').valueAsNumber));
+$('partition-shorter').addEventListener('click', () => changePartitionProjection(-.1));
+$('partition-longer').addEventListener('click', () => changePartitionProjection(.1));
 document.querySelectorAll('[data-band-view]').forEach(button => button.addEventListener('click', () => visitBand(Number(button.dataset.bandView))));
 
 $('world').addEventListener('change', () => setWorld($('world').value));

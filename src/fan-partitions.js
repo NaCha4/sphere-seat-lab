@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { PARTITIONS, partitionPanels } from './partition-layout.js';
-import fit from './data/partition-fit.json' with { type: 'json' };
 
 export class FanPartitions extends THREE.Group {
   constructor() {
@@ -13,8 +12,8 @@ export class FanPartitions extends THREE.Group {
       const ribs = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#9ba7a0' }));
       ribs.name = 'blade-edge'; ribs.userData.level = panel.y; this.add(ribs);
       const cassette = new THREE.Mesh(new THREE.BoxGeometry(panel.width, .10, .16), new THREE.MeshStandardMaterial({ color: '#9a8060', roughness: .65, metalness: .5 }));
-      cassette.position.set((panel.a.x + panel.b.x) / 2 - panel.normal.x * .08, panel.y, (panel.a.z + panel.b.z) / 2 - panel.normal.z * .08);
-      cassette.rotation.y = -Math.atan2(panel.b.z - panel.a.z, panel.b.x - panel.a.x);
+      cassette.position.set((panel.a.x + panel.b.x) / 2 - (panel.normalA.x+panel.normalB.x)*.04, panel.y, (panel.a.z + panel.b.z) / 2 - (panel.normalA.z+panel.normalB.z)*.04);
+      cassette.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0), new THREE.Vector3(panel.b.x-panel.a.x,panel.b.y-panel.a.y,panel.b.z-panel.a.z).normalize());
       cassette.name = `seat-edge-cassette-${panel.section}`; this.add(cassette);
       return { mesh, ribs, level: panel.y, panel, cassette };
     });
@@ -28,16 +27,17 @@ export class FanPartitions extends THREE.Group {
       mesh.visible = ribs.visible = this.amount > 0;
       const ring = panels[index].ring;
       const positions = [], indices = [], lines = [];
-      for (const p of ring) positions.push(p.x, level + half, p.z, p.x, level - half, p.z);
+      for (const p of ring) positions.push(p.x, p.y + half, p.z, p.x, p.y - half, p.z);
       indices.push(0, 2, 4, 0, 4, 6, 1, 5, 3, 1, 7, 5);
       for (let i = 0; i < ring.length; i++) {
         const a = i * 2, b = ((i + 1) % ring.length) * 2;
         indices.push(a, a + 1, b, a + 1, b + 1, b);
       }
-      for (let i = 0; i < ring.length; i++) for (const side of [-1,1]) {
-        const y = level + side * (half + .012);
+      // Draw only the continuous root and leading edges, not false gaps at
+      // every internal joint.
+      for (const i of [0,2]) for (const side of [-1,1]) {
         const p = ring[i], next = ring[(i + 1) % ring.length];
-        lines.push(p.x, y, p.z, next.x, y, next.z);
+        lines.push(p.x, p.y + side*(half+.012), p.z, next.x, next.y + side*(half+.012), next.z);
       }
       if (!mesh.geometry.attributes.position) {
         mesh.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); mesh.geometry.setIndex(indices);
@@ -63,7 +63,7 @@ export class FanPartitions extends THREE.Group {
     return true;
   }
   getState() {
-    return { amount: this.amount, deployed: this.target > 0, recommendedAmount: fit.amount,
+    return { amount: this.amount, deployed: this.target > 0, resetAmount: 0, slopeDegrees: PARTITIONS.slopeDegrees,
       projectionMetres: this.amount * PARTITIONS.maximumProjection, maximumProjectionMetres: PARTITIONS.maximumProjection,
       moving: Math.abs(this.amount - this.target) > 1e-6, levels: [...PARTITIONS.levels] };
   }
