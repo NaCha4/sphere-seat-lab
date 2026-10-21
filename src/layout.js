@@ -99,9 +99,9 @@ export function makeLayout(worldId = 'original') {
     for (let section = tier.first; section <= tier.last; section++) {
       const angles = sectionAngles(tier, section), sourceRange = rowRange(tier, section);
       // Keep reference-row labels for comparison, but merge two old steps into
-      // one deep terrace. Omit edge rows so the extended footrest fits inside.
+      // one deep terrace. Reuse the front row while retaining a rear buffer.
       const selectedRows = recliner ? Object.keys(SEAT_INVENTORY[section]).filter(r => /^\d+$/.test(r)).map(Number)
-        .filter(r => r > sourceRange.first && r < sourceRange.last && (r-sourceRange.first-1)%RECLINER.rowStep===0) : null;
+        .filter(r => r < sourceRange.last && (r-sourceRange.first)%RECLINER.rowStep===0) : null;
       const range = recliner ? { first: selectedRows[0], last: selectedRows.at(-1) } : sourceRange;
       const group = { id: section, tier, ...angles, range, rows: new Map(), seats: [] };
       for (const [label, inventoryCount] of Object.entries(SEAT_INVENTORY[section])) {
@@ -115,7 +115,9 @@ export function makeLayout(worldId = 'original') {
         const path = rowPath(tier, row, rowBounds.start, rowBounds.end);
         const length = path.slice(1).reduce((sum, b, i) => sum + Math.hypot(b.x - path[i].x, b.z - path[i].z), 0);
         const allowance = recliner ? 1.4 : (tier.id === 100 ? .06 : BUILDING.aisleWidth);
-        const count = recliner ? Math.max(1, Math.min(Math.floor(inventoryCount*BUILDING.seatPitch/RECLINER.pitch), Math.floor((length-allowance)/RECLINER.pitch))) : inventoryCount;
+        // Fit the available curved deck, not a second reduction of the old
+        // ticket inventory. Keep the same chair width, pitch and aisle buffer.
+        const count = recliner ? Math.max(1, Math.floor((length-allowance)/RECLINER.pitch)) : inventoryCount;
         const span = Math.min(count * (recliner ? RECLINER.pitch : BUILDING.seatPitch), length - allowance);
         // Shift alternating rows only into existing spare deck width. Dense
         // rows retain their pitch; no seat is pushed into an aisle to stagger it.

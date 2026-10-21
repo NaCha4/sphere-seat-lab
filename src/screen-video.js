@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
-export const SCREEN_MOVIE_URL = './media/sphere-aurora-loop.mp4';
-export const BAND_MOVIE_URL = './media/sphere-wide-bands.mp4';
+export const SCREEN_MOVIE_URL = './media/sphere-motion-loop.mp4';
+export const BAND_MOVIE_URL = './media/sphere-motion-bands.mp4';
 const MOVIE_SOURCES = {
-  sphere: { url: SCREEN_MOVIE_URL, poster: './media/sphere-aurora-poster.jpg' },
-  bands: { url: BAND_MOVIE_URL, poster: './media/sphere-wide-bands-poster.jpg' },
+  sphere: { url: SCREEN_MOVIE_URL, poster: './media/sphere-motion-loop.jpg' },
+  bands: { url: BAND_MOVIE_URL, poster: './media/sphere-motion-bands.jpg' },
 };
 
 // The mesh UV covers only the spherical cap. Sample the corresponding latitude

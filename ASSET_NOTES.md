@@ -1,28 +1,18 @@
-# Screen content
+# Screen content — Research 08
 
-The default screen is the self-authored **Sphere Aurora Orbit** movie in `public/media/sphere-aurora-loop.mp4`.
+All three worlds now use **Chromatic Flux**, a self-authored procedural motion graphic. Rotating neon orbits, flowing contours and expanding rings replace the aurora movie. It has a continuous 20-second loop with no cuts, audio, external footage or images. This is presentation content, not evidence of reduced motion sickness.
 
-- 2048 × 1024 pixels, 2:1 full-sphere equirectangular projection.
-- 20 seconds, 24 fps, 480 frames, H.264 High / yuv420p, silent, looping.
-- 1,570,157 bytes (about 1.50 MiB). The MP4 uses fast-start metadata for web delivery.
-- Original procedural artwork, generated from smooth functions of 3D unit-sphere coordinates. No external footage, recording, image or soundtrack is included.
-- `scripts/generate-screen-video.py` reproduces the clip with NumPy, Pillow and an ffmpeg binary supporting libx264. These tools are needed only to regenerate the asset, not to run or build the website.
+| World | Video | Dimensions |
+| --- | --- | --- |
+| Original / V1 | `public/media/sphere-motion-loop.mp4` | 2048×1024, full-sphere equirectangular |
+| V2 | `public/media/sphere-motion-bands.mp4` | 3072×1450, synchronized three-strip atlas |
 
-`src/screen-video.js` maps the full-sphere video's latitude to the clipped LED surface. It retains the panorama's longitude and does not stretch 180 degrees into the smaller screen cap. The artwork joins across the longitude seam and changes smoothly over a full 20-second cycle. Viewing from different seats still changes the physical perspective.
+Both are 24 fps / 480 frames, H.264 High, yuv420p, silent, looping, with fast-start metadata. Posters have the same base name and `.jpg` extension. Separate V2 exports are `sphere-motion-band-1.mp4` (3072×314), `sphere-motion-band-2.mp4` (3072×292), and `sphere-motion-band-3.mp4` (3072×844).
 
-The player is muted, inline and looping. Desktop and VR controls provide play/pause. Switching to a static screen pauses decoding, and an explicit pause is preserved when returning to the movie. The original static aurora remains visible while the first frame loads. The dark roof remains outside the LED content.
+`python scripts/generate-motion-video.py --ffmpeg /path/to/ffmpeg` reproduces all outputs using NumPy, Pillow and an ffmpeg binary with libx264. `--target sphere` renders the source; `--target bands` derives the atlas from the existing source. The source uses continuous unit-sphere fields and periodic time functions. Three workers render a bounded queue of six frames. Review frames at 0, 5, 10, 15 and the final frame are written under ignored `tmp/motion-review/`.
 
-`public/media/sphere-aurora-poster.jpg` is the first frame. Optional static aurora, Earth, stars and UV grid remain available. The previous AI-generated Chiikawa image remains only in Git history.
+The full-sphere player maps the corresponding latitude range to the clipped LED cap. V2 uses the central 2048×620 panoramic region of the same movie, scaled to each band without letterboxing. Its timing is identical to the source. V2 retains the full-width band mapping in `src/partition-layout.js` and `src/band-screen.js`, using `src/data/band-video.json`; no central rectangular window or black letterbox is added. One video decoder supplies all bands. Switching worlds preserves playback intent and position. Static content pauses video decoding.
 
-Validation: all 480 frames decoded without errors; frames at 0, 5, 10 and 19.95 seconds inspected; mapping, transport, blocked-autoplay recovery, disposal and material handover covered by automated tests. Browser/Quest playback still requires device verification.
+The earlier aurora movies and their generation scripts remain as reference assets; they are no longer the active movies. Static aurora, Earth, stars and grid modes remain available. Quest 3 playback and frame rate require device verification.
 
-
-## Wide three-band movie — 2026-10-21
-
-V2 uses `public/media/sphere-wide-bands.mp4`: a 3072×1450 atlas of three synchronized, self-authored panoramic aurora strips. Individual strip sizes are 3072×314, 3072×292 and 3072×844. Duration is 20 seconds at 24 fps, H.264/yuv420p, silent and looping. The three compositions are generated for their respective aspect ratios; the former central 2:1 window and its black margins are removed.
-
-`node scripts/generate-band-layout.js` derives the atlas layout from the current band geometry. `python scripts/generate-band-video.py --ffmpeg /path/to/ffmpeg` generates the movie and poster, plus standalone strip videos in `public/media/`. `src/data/band-video.json` records the layout. `band-screen.js` maps each height's complete horizontal arc to the correct strip, with half-texel insets to avoid neighbouring-strip bleed.
-
-The upright aurora video remains the source for the baseline and V1. Source changes reuse one video element and preserve play/pause intent and the timeline after metadata loads. No external footage or music is used.
-
-Validation: all four new videos decode through 480 frames without errors. Desktop Chrome playback and full-width mapping were checked locally; Quest playback remains unverified.
+Validation: all five MP4s decoded through 480 frames without errors. All three worlds played in local Chrome without console errors. The 38-test suite and production build passed.

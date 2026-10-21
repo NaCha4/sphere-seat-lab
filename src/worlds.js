@@ -7,7 +7,7 @@ export const WORLDS = Object.freeze([
   }),
   Object.freeze({
     id: 'curvature-v1', label: 'V1 · 리클라이너 / 시청 우선 배치', shortLabel: 'V1 리클라이너',
-    description: '좌석 폭 0.90m · 중심 간격 1.02m · 두 행을 한 단으로 합친 리클라이너 배치. 좌석 수를 줄이고 전층 곡률과 의자 방향을 전방 화면에 맞춥니다.',
+    description: '좌석 폭 0.90m · 중심 간격 1.02m · 앞뒤 약 1.8m의 리클라이너 배치. 간격을 유지하면서 곡선 객석의 여유 폭과 앞쪽 행을 활용해 좌석 수를 늘렸습니다.',
     geometry: Object.freeze({ rearShift: 12, halfWidth: 64, stagger: .25 }),
     seating: 'recliner',
   }),

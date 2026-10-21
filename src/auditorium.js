@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RECLINER } from './seating-pose.js';
-import { BUILDING, TIERS, radians, rowGeometry, rowPoint, rowPath, sectionAngles } from './layout.js';
+import { BUILDING, TIERS, radians, rowGeometry, rowPoint, rowPath, sectionAngles, resolveSeat } from './layout.js';
 import { bankBounds, bankPoint, createBankGeometry, createAisleGeometry, mergeBowlSurfaces } from './bowl-geometry.js';
 import { createAuroraMaterial } from './screen-content.js';
 import { DomeMovie } from './screen-video.js';
@@ -141,14 +141,14 @@ export class Auditorium {
   setLayout(layout) {
     if (layout === this.layout) return;
     const oldScreenLayout = this.layout.world.screenLayout;
-    const selectedId = this.selected?.id, stage = this.stageGroup.visible;
+    const previousSeat = this.selected, stage = this.stageGroup.visible;
     const labels = this.labels.visible, overview = this.overview, audience = this.audienceEnabled;
     this.group.remove(this.worldGroup);
     disposeGroup(this.worldGroup, [...this.bankShells, ...this.aisleShells].map(s => s.geometry));
     this.audience = null;
     this.createWorld(layout);
     if (oldScreenLayout !== layout.world.screenLayout) this.setScreen(layout.world.screenLayout ? 'video' : this.screenMode);
-    if (selectedId && layout.byId.has(selectedId)) this.select(layout.byId.get(selectedId));
+    if (previousSeat) this.select(resolveSeat(layout, previousSeat));
     this.setStage(stage); this.setAudience(audience); this.setOverview(overview, labels);
   }
 

@@ -11,8 +11,8 @@ test('recliner world reduces seating and provides wide chairs on deep continuous
   const original = makeLayout(), variant = makeLayout('curvature-v1');
   assert.equal(getWorld('unknown').id, 'original');
   assert.equal(new Set(WORLDS.map(w => w.id)).size, WORLDS.length);
-  assert.ok(variant.seats.length < original.seats.length*.4);
-  assert.ok(variant.seats.length > original.seats.length*.15);
+  assert.ok(variant.seats.length < original.seats.length*.5);
+  assert.ok(variant.seats.length > 4000, 'recover capacity without shrinking the recliners');
   assert.equal(variant.sections.length,original.sections.length);
   assert.deepEqual(makeLayout().seats, original.seats, 'variant generation must not mutate baseline');
   for (const section of original.sections) {
@@ -24,8 +24,8 @@ test('recliner world reduces seating and provides wide chairs on deep continuous
     }
   }
   for (const s of variant.seats) {
-    const baseline = original.byId.get(s.id);
-    assert.equal(s.y, baseline.y, 'same eye and riser heights');
+    const baseline = original.bySection.get(s.section).rows.get(s.row)[0];
+    assert.equal(s.y, baseline.y, 'retain the reference riser heights');
     assert.ok(Math.hypot(s.x, s.y - BUILDING.centerY, s.z) < BUILDING.diameter / 2, s.id);
     assert.ok(Math.abs(s.x) < 65.8 && s.z < 64.8, 'chairs stay inside fixed enclosure');
     assert.equal(s.recliner,true);assert.equal(s.width,RECLINER.width);
@@ -39,6 +39,27 @@ test('recliner world reduces seating and provides wide chairs on deep continuous
   for(const section of variant.sections){
     const rows=[...section.rows.keys()];
     for(let i=1;i<rows.length;i++)assert.ok(rows[i]-rows[i-1]>=2);
+  }
+});
+
+test('expanded recliner capacity retains clearance around fully extended chairs', () => {
+  const seats = makeLayout('curvature-v1').seats;
+  // A conservative 0.90 x 1.56 m footprint encloses the rendered armrests,
+  // reclined back/headrest and fully extended footrest.
+  const corner = (s,x,z) => ({ x:s.x+x*Math.cos(s.yaw)+z*Math.sin(s.yaw), z:s.z-x*Math.sin(s.yaw)+z*Math.cos(s.yaw) });
+  const outlines = seats.map(s => [corner(s,-.45,-.93),corner(s,.45,-.93),corner(s,.45,.63),corner(s,-.45,.63)]);
+  const overlaps = (a,b) => {
+    for (const p of [a,b]) for (let edge=0;edge<2;edge++) {
+      const q=p[edge+1],r=p[edge],ax=-(q.z-r.z),az=q.x-r.x;
+      const first=a.map(v=>v.x*ax+v.z*az),second=b.map(v=>v.x*ax+v.z*az);
+      if(Math.max(...first)<=Math.min(...second)+.001||Math.max(...second)<=Math.min(...first)+.001)return false;
+    }
+    return true;
+  };
+  for(let i=0;i<seats.length;i++)for(let j=i+1;j<seats.length;j++) {
+    const a=seats[i],b=seats[j];
+    if(Math.abs(a.y-b.y)>.01||Math.hypot(a.x-b.x,a.z-b.z)>2.2)continue;
+    assert.equal(overlaps(outlines[i],outlines[j]),false,`${a.id} overlaps ${b.id}`);
   }
 });
 

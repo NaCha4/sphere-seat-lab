@@ -1,4 +1,8 @@
-# 현재 변경 — Research 07 · 2026-10-21
+# 현재 변경 — Research 08 · 2026-10-21
+
+리클라이너 폭·앞뒤 간격을 유지하면서 V1을 3,330석에서 4,086석으로 늘렸다. 모든 버전의 기본 영상을 Chromatic Flux 모션그래픽으로 교체했다. 현재 기준은 [VARIATIONS.md](VARIATIONS.md)와 [ASSET_NOTES.md](ASSET_NOTES.md)를 참조한다. 아래 내용은 이전 변경 기록이다.
+
+## 이전 변경 — Research 07 · 2026-10-21
 
 V1을 리클라이너 3,330석 배치로 수정하고, V2에 각 단의 곡면 전체를 채우는 와이드 영상을 적용했다. 현재 치수·비교 방식은 [VARIATIONS.md](VARIATIONS.md), 영상 제작 정보는 [ASSET_NOTES.md](ASSET_NOTES.md)를 참조한다. 아래 Research 04–06 기록의 V1 좌석 수 유지와 V2 중앙 직사각형 영상 설명은 변경 전 상태다.
 
