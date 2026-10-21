@@ -7,6 +7,7 @@ import { Auditorium } from '../src/auditorium.js';
 import { createScreenGeometry } from '../src/screen-geometry.js';
 import { DomeMovie, fitSphericalVideo, SCREEN_MOVIE_URL, BAND_MOVIE_URL } from '../src/screen-video.js';
 import { VIDEO_PRESETS, getVideoPreset } from '../src/video-library.js';
+import fit from '../src/data/partition-fit.json' with { type: 'json' };
 
 class FakeVideo extends EventTarget {
   paused = true; ended = false; readyState = 0; duration = 20; currentTime = 0;
@@ -104,7 +105,7 @@ test('the decoded movie replaces the loading image without resetting overview or
       assert.equal(model.hovered[0].id,hover.id,'picking uses the replacement world');
     }
     model.setLayout(makeLayout('fan-v2'));
-    assert.equal(model.getPartitionState().amount,0,'the fan starts folded');
+    assert.equal(model.getPartitionState().amount,fit.amount,'start with fitted protection');
     assert.equal(model.movie,movie); assert.equal(model.screen,screen); assert.equal(video.currentTime,7.25);
     assert.equal(model.screenMaterial.uniforms.uMovie.value,texture);
     assert.equal(video.src,BAND_MOVIE_URL);
@@ -113,19 +114,22 @@ test('the decoded movie replaces the loading image without resetting overview or
     assert.equal(model.screenMaterial.uniforms.uReady.value,1);
     assert.equal(video.currentTime,7.25);
     const material = model.screenMaterial;
-    for (const id of ['106-16-8','206-10-8','306-10-8']) {
-      const seat = model.layout.byId.get(id);
-      if (seat) model.select(seat);
-      assert.equal(model.screenMaterial,material,'every floor sees the same three rendered frames; no camera-dependent screen hiding');
+    for (const section of [106,206,306,406]) {
+      model.select(resolveSeat(model.layout,{section,row:10}));
+      assert.equal(model.screenMaterial,material,'both zones share two rendered frames; no camera-dependent screen hiding');
     }
-    model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,1);
-    model.setScreen('aurora'); assert.equal(model.screenMode,'video','this experimental world keeps three synchronized videos');
+    model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,fit.amount);
+    model.setPartitionAmount(.6);
+    assert.equal(model.getPartitionState().deployed,true);
+    model.setScreen('aurora'); assert.equal(model.screenMode,'video','this experimental world keeps two synchronized videos');
     model.setLayout(makeLayout('original'));
     assert.equal(model.getPartitionState(),null);
     assert.equal(video.src,SCREEN_MOVIE_URL);
     video.dispatchEvent(new Event('loadedmetadata'));video.decode();
     assert.equal(model.screenMaterial.map,texture);
-    assert.equal(players,1,'switching between triple and full-dome playback uses one decoder');
+    assert.equal(players,1,'switching between two-band and full-dome playback uses one decoder');
+    model.setLayout(makeLayout('fan-v2'));
+    assert.equal(model.getPartitionState().amount,.6,'manual deployment survives world changes');
   } finally { model?.dispose(); globalThis.document = original; }
 });
 

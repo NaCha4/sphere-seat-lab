@@ -10,7 +10,7 @@ export const audienceStature = seat => .94 + audienceVariation(seat) * .12;
 
 export function audienceHead(seat) {
   const stature = audienceStature(seat);
-  const local = seat.recliner ? reclinedPoint({ y: HEAD.height, z: HEAD.forward }) : { y: HEAD.height, z: HEAD.forward };
+  const local = seat.recliner ? reclinedPoint({ y: HEAD.height, z: HEAD.forward },seat.backAngle) : { y: HEAD.height, z: HEAD.forward };
   return {
     x: seat.x + Math.sin(seat.yaw) * local.z,
     y: seat.y + local.y * stature,

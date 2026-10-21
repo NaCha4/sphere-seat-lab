@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RECLINER } from './seating-pose.js';
+import { RECLINER, reclinedPoint } from './seating-pose.js';
 import { BUILDING, TIERS, radians, rowGeometry, rowPoint, rowPath, sectionAngles, resolveSeat } from './layout.js';
 import { bankBounds, bankPoint, createBankGeometry, createAisleGeometry, mergeBowlSurfaces } from './bowl-geometry.js';
 import { createAuroraMaterial } from './screen-content.js';
@@ -122,7 +122,10 @@ export class Auditorium {
     this.pickables = []; this.chairMeshes = []; this.labels = new THREE.Group(); this.group.add(this.labels);
     this.createArchitecture(); this.createSeats();
     this.fans = layout.world.partitions ? new FanPartitions() : null;
-    if (this.fans) { this.fans.setDeployed(Boolean(this.partitionDeployed), true); this.worldGroup.add(this.fans); }
+    if (this.fans) {
+      this.setPartitionAmount(this.partitionAmount ?? this.fans.getState().recommendedAmount);
+      this.worldGroup.add(this.fans);
+    }
     const ring = new THREE.Mesh(new THREE.RingGeometry(.42, .49, 32), new THREE.MeshBasicMaterial({ color: '#eac78d', side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; this.marker = ring; this.group.add(ring);
     this.hovered = [];
@@ -259,8 +262,8 @@ export class Auditorium {
     const parts = this.layout.world.seating === 'recliner' ? [
       { geometry: new THREE.BoxGeometry(.82, .30, .72), position: [0,.17,-.02] },
       { geometry: roundedPanel(.63,.60,.16,.09).rotateX(-Math.PI/2), position: [0,.43,-.14], fabric: true },
-      { geometry: roundedPanel(.66,.78,.15,.09), position: [0,.82,.31], tilt: RECLINER.backAngle, fabric: true },
-      { geometry: roundedPanel(.57,.22,.17,.08), position: [0,1.16,.49], tilt: RECLINER.backAngle, fabric: true },
+      { geometry: roundedPanel(.66,.78,.15,.09), position: [0,.947,.099], reclines: true, fabric: true },
+      { geometry: roundedPanel(.57,.22,.17,.08), position: [0,1.332,.098], reclines: true, fabric: true },
       { geometry: roundedPanel(.14,.68,.27,.06).rotateX(-Math.PI/2), position: [-.38,.52,-.10], fabric: true },
       { geometry: roundedPanel(.14,.68,.27,.06).rotateX(-Math.PI/2), position: [.38,.52,-.10], fabric: true },
       { geometry: roundedPanel(.64,.51,.12,.07).rotateX(-Math.PI/2), position: [0,.32,-.67], fabric: true },
@@ -296,7 +299,11 @@ export class Auditorium {
         // Standard width options are visual approximations, not installed-seat IDs.
         const width = s.pitch >= .579 ? .58 : s.pitch >= .555 ? .555 : .53;
         o.scale.set(s.recliner ? 1 : width / .58, 1, 1); o.updateMatrix();
-        part.position.fromArray(def.position); part.rotation.set(def.tilt || 0, 0, 0); part.updateMatrix();
+        if(def.reclines) {
+          const p=reclinedPoint({x:def.position[0],y:def.position[1],z:def.position[2]},s.backAngle);
+          part.position.set(p.x,p.y,p.z); part.rotation.set(s.backAngle ?? RECLINER.backAngle,0,0);
+        } else { part.position.fromArray(def.position); part.rotation.set(def.tilt || 0, 0, 0); }
+        part.updateMatrix();
         mesh.setMatrixAt(s.index, o.matrix.clone().multiply(part.matrix));
         mesh.setColorAt(s.index, def.fabric ? baseColors.get(s.tier) : new THREE.Color('#9aa8b3'));
       }
@@ -308,7 +315,7 @@ export class Auditorium {
   }
 
   createScreen(mode) {
-    if (this.layout.world.screenLayout === 'three-bands') mode = 'video';
+    if (this.layout.world.screenLayout === 'two-bands') mode = 'video';
     this.screenMode = mode;
     this.screenMaterial = this.makeScreenMaterial(mode);
     const { geometry, boundary } = createScreenGeometry();
@@ -353,9 +360,9 @@ export class Auditorium {
       if (!this.movie) this.movie = new DomeMovie({ screen: BUILDING.screen, clipId: this.videoId, onChange: () => {
         this.syncVideoMaterial(); this.onPlaybackChange?.(this.getVideoState());
       } });
-      this.movie.setSource(this.layout.world.screenLayout === 'three-bands' ? 'bands' : 'sphere', this.videoId);
+      this.movie.setSource(this.layout.world.screenLayout === 'two-bands' ? 'bands' : 'sphere', this.videoId);
       void this.movie.setActive(true);
-      if (this.layout.world.screenLayout === 'three-bands') {
+      if (this.layout.world.screenLayout === 'two-bands') {
         this.texture = this.movie.texture;
         return createBandScreenMaterial(this.texture, this.movie.ready, BUILDING.screen);
       }
@@ -392,12 +399,12 @@ export class Auditorium {
   }
   setStage(enabled) { this.stageGroup.visible = enabled; }
   setPartitions(deployed, immediate = false) {
-    this.partitionDeployed = deployed; this.fans?.setDeployed(deployed, immediate);
+    this.fans?.setDeployed(deployed, immediate);
+    if (this.fans) this.partitionAmount = this.fans.target;
   }
   setPartitionAmount(amount) {
     this.fans?.setAmount(amount);
-    this.partitionDeployed = amount >= .5;
-    if (this.fans) this.fans.target = amount;
+    if (this.fans) this.partitionAmount = this.fans.target = this.fans.amount;
   }
   getPartitionState() { return this.fans?.getState() ?? null; }
   update(delta) { return this.fans?.update(delta) ?? false; }
@@ -424,7 +431,7 @@ export class Auditorium {
     this.hovered = next;
   }
   setScreen(mode) {
-    if (this.layout.world.screenLayout === 'three-bands') mode = 'video';
+    if (this.layout.world.screenLayout === 'two-bands') mode = 'video';
     this.screenMode = mode;
     if (mode !== 'video') void this.movie?.setActive(false);
     const opacity = this.screenMaterial.opacity, depthWrite = this.screenMaterial.depthWrite;

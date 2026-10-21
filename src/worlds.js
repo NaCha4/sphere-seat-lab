@@ -12,9 +12,9 @@ export const WORLDS = Object.freeze([
     seating: 'recliner',
   }),
   Object.freeze({
-    id: 'fan-v2', label: 'V2 · 부채형 차광막 / 3단 영상', shortLabel: 'V2 차광막',
-    description: '100번대 / 200번대 / 300·400번대를 세 그룹으로 나누고, 접이식 차광막 두 단과 같은 영상 세 개로 시야를 분리하는 실험입니다.',
-    geometry: null, screenLayout: 'three-bands', partitions: true,
+    id: 'fan-v2', label: 'V2 · 2구역 리클라이너 / 차광막 1개', shortLabel: 'V2 2구역',
+    description: '1·2층은 전방, 3·4층은 천장 쪽을 보는 리클라이너 구역입니다. 두 구역 사이 차광막 한 장을 필요한 만큼 전개합니다.',
+    geometry: null, screenLayout: 'two-bands', partitions: true, seating: 'recliner',
   }),
 ]);
 

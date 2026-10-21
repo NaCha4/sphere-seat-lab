@@ -6,7 +6,7 @@ export function reclinedPoint(point, angle = RECLINER.backAngle) {
 }
 
 export function seatPoint(seat, point) {
-  const p = seat.recliner ? reclinedPoint(point) : { x: point.x ?? 0, y: point.y, z: point.z ?? 0 };
+  const p = seat.recliner ? reclinedPoint(point, seat.backAngle ?? RECLINER.backAngle) : { x: point.x ?? 0, y: point.y, z: point.z ?? 0 };
   return {
     x: seat.x + p.x * Math.cos(seat.yaw) + p.z * Math.sin(seat.yaw),
     y: seat.y + p.y,

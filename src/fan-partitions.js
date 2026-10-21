@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PARTITIONS, fanRing } from './partition-layout.js';
+import fit from './data/partition-fit.json' with { type: 'json' };
 
 export class FanPartitions extends THREE.Group {
   constructor() {
@@ -15,24 +16,22 @@ export class FanPartitions extends THREE.Group {
     });
     for (const level of PARTITIONS.levels) {
       const cassette = new THREE.Mesh(new THREE.BoxGeometry(2, .32, .65), new THREE.MeshStandardMaterial({ color: '#9a8060', roughness: .65, metalness: .5 }));
-      cassette.position.set(.65, level, PARTITIONS.rearZ - .1); cassette.name = 'rear-fold-cassette'; this.add(cassette);
+      cassette.position.set(PARTITIONS.hubX, level, PARTITIONS.hubZ); cassette.name = 'fold-cassette'; this.add(cassette);
     }
     this.setAmount(0);
   }
 
   setAmount(amount) {
     this.amount = THREE.MathUtils.clamp(amount, 0, 1);
-    const hub = { x: 0, z: PARTITIONS.rearZ }, half = PARTITIONS.thickness / 2;
+    const hub = { x: PARTITIONS.hubX, z: PARTITIONS.hubZ }, half = PARTITIONS.thickness / 2;
     for (const { mesh, ribs, level } of this.membranes) {
       const ring = fanRing(this.amount, level);
       const positions = [], indices = [], lines = [];
       for (const p of [hub, ...ring]) positions.push(p.x, level + half, p.z, p.x, level - half, p.z);
-      for (let i = 0; i < ring.length - 1; i++) {
-        const a = 2 + i * 2, b = a + 2;
+      for (let i = 0; i < ring.length; i++) {
+        const a = 2 + i * 2, b = 2 + ((i + 1) % ring.length) * 2;
         indices.push(0, b, a, 1, a + 1, b + 1, a, b, a + 1, a + 1, b, b + 1);
       }
-      const last = ring.length * 2;
-      indices.push(0, 2, 1, 1, 2, 3, 0, 1, last, 1, last + 1, last);
       for (const p of ring) for (const side of [-1,1]) {
         const y = level + side * (half + .012);
         lines.push(hub.x, y, hub.z, p.x, y, p.z);
@@ -49,7 +48,7 @@ export class FanPartitions extends THREE.Group {
   }
 
   setDeployed(deployed, immediate = false) {
-    this.target = deployed ? 1 : 0;
+    this.target = deployed ? fit.amount : 0;
     if (immediate) this.setAmount(this.target);
   }
   update(delta) {
@@ -59,6 +58,6 @@ export class FanPartitions extends THREE.Group {
     return true;
   }
   getState() {
-    return { amount: this.amount, deployed: this.target === 1, moving: Math.abs(this.amount - this.target) > 1e-6, levels: [...PARTITIONS.levels] };
+    return { amount: this.amount, deployed: this.target > 0, recommendedAmount: fit.amount, moving: Math.abs(this.amount - this.target) > 1e-6, levels: [...PARTITIONS.levels] };
   }
 }

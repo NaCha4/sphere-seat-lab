@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { getVideoPreset, videoSource } from './video-library.js';
 
-export const SCREEN_MOVIE_URL = './media/sphere-motion-loop.mp4';
-export const BAND_MOVIE_URL = './media/sphere-motion-bands.mp4';
+export const SCREEN_MOVIE_URL = getVideoPreset('motion').sphere.url;
+export const BAND_MOVIE_URL = getVideoPreset('motion').bands.url;
 
 // The mesh UV covers only the spherical cap. Sample the corresponding latitude
 // range of a complete 2:1 equirectangular movie, rather than stretch 180° into it.

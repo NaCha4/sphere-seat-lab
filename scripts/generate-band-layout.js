@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { BUILDING } from '../src/layout.js';
 import { SCREEN_BANDS, bandFrame } from '../src/partition-layout.js';
 
-// One video atlas keeps all three versions frame-accurate with one decoder.
+// One video atlas keeps both viewing zones frame-accurate with one decoder.
 const width = 3072;
 let row = 0;
 const bands = SCREEN_BANDS.map(band => {

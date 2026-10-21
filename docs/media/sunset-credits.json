@@ -6,6 +6,6 @@
   "licenseUrl": "https://www.pexels.com/license/",
   "checkedOn": "2026-10-21",
   "sourceVideo": { "width": 3840, "height": 2160, "fps": 25, "duration": 8 },
-  "adaptations": "Muted, resampled to 24 fps, cropped for the curved screen and for each of three band aspect ratios, re-encoded as H.264 with fast-start. This is conventional footage, not 360-degree capture.",
-  "outputs": ["sphere-sunset-loop.mp4", "sphere-sunset-loop.jpg", "sphere-sunset-bands.mp4", "sphere-sunset-bands.jpg"]
+  "adaptations": "Muted, resampled to 24 fps, cropped for the curved screen and for each of two viewing-zone aspect ratios, re-encoded as H.264 with fast-start. Earlier three-band exports are retained as references. This is conventional footage, not 360-degree capture.",
+  "outputs": ["sphere-sunset-loop.mp4", "sphere-sunset-loop.jpg", "sphere-sunset-two-bands.mp4", "sphere-sunset-two-bands.jpg"]
 }

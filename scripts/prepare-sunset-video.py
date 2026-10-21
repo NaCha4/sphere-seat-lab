@@ -11,6 +11,7 @@ import subprocess
 parser = argparse.ArgumentParser()
 parser.add_argument('--ffmpeg', default='ffmpeg')
 parser.add_argument('--input', default='tmp/sunset/pexels-36753274-original.mp4')
+parser.add_argument('--target', choices=['sphere', 'bands', 'all'], default='all')
 args = parser.parse_args()
 layout = json.loads(Path('src/data/band-video.json').read_text(encoding='utf-8'))
 output = Path('public/media')
@@ -34,13 +35,16 @@ def encode(name, filters, complex_filter=False):
 
 
 # Trim the unneeded foreground at the bottom; retain the complete 4K width.
-encode('sphere-sunset-loop', 'fps=24,crop=3840:1920:0:0,setsar=1')
+if args.target in ['sphere', 'all']:
+    encode('sphere-sunset-loop', 'fps=24,crop=3840:1920:0:0,setsar=1')
 # Each strip is a cover crop at its own aspect ratio, not a vertically squashed
-# copy. Keep the mountain/cloud horizon around source y=730 for all three.
-parts = ['[0:v]fps=24,split=3[a][b][c]']
-for label, band in zip('abc', layout['bands']):
+# copy. Keep the mountain/cloud horizon around source y=730 for both zones.
+labels = [f'zone{i}' for i in range(len(layout['bands']))]
+parts = [f"[0:v]fps=24,split={len(labels)}" + ''.join(f'[{label}]' for label in labels)]
+for label, band in zip(labels, layout['bands']):
     height = round(3840 * band['height'] / band['width'] / 2) * 2
-    top = round((730 - height / 2) / 2) * 2
+    top = max(0, min(2160 - height, round((730 - height / 2) / 2) * 2))
     parts.append(f"[{label}]crop=3840:{height}:0:{top},scale={band['width']}:{band['height']}:flags=lanczos,setsar=1[s{band['id']}]")
-parts.append('[s1][s2][s3]vstack=inputs=3[out]')
-encode('sphere-sunset-bands', ';'.join(parts), True)
+parts.append(''.join(f"[s{band['id']}]" for band in layout['bands']) + f'vstack=inputs={len(labels)}[out]')
+if args.target in ['bands', 'all']:
+    encode('sphere-sunset-two-bands', ';'.join(parts), True)

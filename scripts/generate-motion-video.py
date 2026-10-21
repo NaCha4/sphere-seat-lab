@@ -1,4 +1,4 @@
-"""Self-authored Chromatic Flux loops, for the dome and three-band atlas.
+"""Self-authored Chromatic Flux loops, for the dome and viewing-zone atlas.
 
 NumPy / Pillow / ffmpeg (libx264). All fields are continuous on a unit sphere
 and periodic over 20 seconds; no external images, footage or audio are used.
@@ -106,12 +106,13 @@ def encode_bands(args, layout):
     source = Path('public/media/sphere-motion-loop.mp4')
     if not source.exists():
         raise FileNotFoundError('Render --target sphere before --target bands')
-    output = source.with_name('sphere-motion-bands.mp4')
+    output = source.with_name('sphere-motion-two-bands.mp4')
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-    filters = ['[0:v]crop=2048:620:0:202,split=3[a][b][c]']
-    for label, band in zip('abc', layout['bands']):
+    labels = [f'zone{i}' for i in range(len(layout['bands']))]
+    filters = [f"[0:v]crop=2048:620:0:202,split={len(labels)}" + ''.join(f'[{label}]' for label in labels)]
+    for label, band in zip(labels, layout['bands']):
         filters.append(f"[{label}]scale={band['width']}:{band['height']}:flags=lanczos[s{band['id']}]")
-    filters.append('[s1][s2][s3]vstack=inputs=3[out]')
+    filters.append(''.join(f"[s{band['id']}]" for band in layout['bands']) + f'vstack=inputs={len(labels)}[out]')
     subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y','-i',str(source),
                     '-filter_complex',';'.join(filters),'-map','[out]','-an','-c:v','libx264',
                     '-preset','veryfast','-crf','22','-pix_fmt','yuv420p','-profile:v','high',
@@ -120,7 +121,7 @@ def encode_bands(args, layout):
     subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y','-i',str(output),
                     '-frames:v','1','-q:v','2',str(output.with_suffix('.jpg'))],check=True,creationflags=flags)
     for band in layout['bands']:
-        strip = output.with_name(f"sphere-motion-band-{band['id']}.mp4")
+        strip = output.with_name(f"sphere-motion-zone-{band['id']}.mp4")
         subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y','-i',str(output),
                         '-vf',f"crop={band['width']}:{band['height']}:0:{band['row']}",
                         '-an','-c:v','libx264','-preset','veryfast','-crf','21','-pix_fmt','yuv420p',

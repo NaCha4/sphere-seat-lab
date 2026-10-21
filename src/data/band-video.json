@@ -1,38 +1,28 @@
 {
   "width": 3072,
-  "height": 1450,
+  "height": 1432,
   "fps": 24,
   "duration": 20,
   "bands": [
     {
       "id": 1,
       "width": 3072,
-      "height": 314,
+      "height": 588,
       "row": 0,
-      "referenceWidthMetres": 107.60131847786222,
-      "referenceHeightMetres": 11,
-      "offset": 0.783448275862069,
-      "scale": 0.21655172413793103
+      "referenceWidthMetres": 127.45337295892365,
+      "referenceHeightMetres": 24.4,
+      "offset": 0.5893854748603352,
+      "scale": 0.4106145251396648
     },
     {
       "id": 2,
       "width": 3072,
-      "height": 292,
-      "row": 314,
-      "referenceWidthMetres": 140.84001445731207,
-      "referenceHeightMetres": 13.399999999999999,
-      "offset": 0.5820689655172413,
-      "scale": 0.2013793103448276
-    },
-    {
-      "id": 3,
-      "width": 3072,
       "height": 844,
-      "row": 606,
+      "row": 588,
       "referenceWidthMetres": 177.4704937222216,
       "referenceHeightMetres": 48.752,
       "offset": 0,
-      "scale": 0.5820689655172414
+      "scale": 0.5893854748603352
     }
   ]
 }

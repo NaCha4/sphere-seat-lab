@@ -3,6 +3,7 @@ import plan from './data/plan-angles.json' with { type: 'json' };
 import { lowerPoint, LOWER_KNOTS, LOWER_TREAD, LOWER_LENGTH, pixelToPlan, PRODUCTION_PLAN } from './production-plan.js';
 import { getWorld, warpPlan } from './worlds.js';
 import { RECLINER, seatEye } from './seating-pose.js';
+import { zoneForTier } from './view-zones.js';
 
 // Published dimensions. Interior estimates are documented in RECONSTRUCTION_AUDIT.md.
 export const BUILDING = Object.freeze({
@@ -92,10 +93,11 @@ export function sampleRow(path, distance) {
 export function makeLayout(worldId = 'original') {
   const world = getWorld(worldId);
   const recliner = world.seating === 'recliner';
-  const tiers = world.geometry ? TIERS.map(t => ({ ...t, worldGeometry: world.geometry, rowStep: recliner ? RECLINER.rowStep : 1 })) : TIERS;
+  const tiers = world.geometry || recliner ? TIERS.map(t => ({ ...t, worldGeometry: world.geometry, rowStep: recliner ? RECLINER.rowStep : 1 })) : TIERS;
   const seats = [], sections = [], accessibleInventory = [];
   const byId = new Map(), bySection = new Map();
   for (const tier of tiers) {
+    const reclinerPitch = (world.partitions ? zoneForTier(tier.id)?.seatPitch : null) ?? RECLINER.pitch;
     for (let section = tier.first; section <= tier.last; section++) {
       const angles = sectionAngles(tier, section), sourceRange = rowRange(tier, section);
       // Keep reference-row labels for comparison, but merge two old steps into
@@ -117,8 +119,8 @@ export function makeLayout(worldId = 'original') {
         const allowance = recliner ? 1.4 : (tier.id === 100 ? .06 : BUILDING.aisleWidth);
         // Fit the available curved deck, not a second reduction of the old
         // ticket inventory. Keep the same chair width, pitch and aisle buffer.
-        const count = recliner ? Math.max(1, Math.floor((length-allowance)/RECLINER.pitch)) : inventoryCount;
-        const span = Math.min(count * (recliner ? RECLINER.pitch : BUILDING.seatPitch), length - allowance);
+        const count = recliner ? Math.max(1, Math.floor((length-allowance)/reclinerPitch)) : inventoryCount;
+        const span = Math.min(count * (recliner ? reclinerPitch : BUILDING.seatPitch), length - allowance);
         // Shift alternating rows only into existing spare deck width. Dense
         // rows retain their pitch; no seat is pushed into an aisle to stagger it.
         const spare = Math.max(0, (length - span - allowance) / 2);
@@ -137,8 +139,14 @@ export function makeLayout(worldId = 'original') {
           if (recliner) {
             // Orient the chairs toward the fixed front viewing axis rather
             // than forcing the viewer to face the tangent of the row.
-            seat.yaw = Math.atan2(seat.x-BUILDING.stage.x, seat.z-BUILDING.stage.z);
-            seat.viewPitch = Math.atan2(30-seatEye(seat).y, Math.hypot(seat.x-BUILDING.stage.x,seat.z-BUILDING.stage.z));
+            const zone = world.partitions ? zoneForTier(tier.id) : null;
+            seat.backAngle = zone ? radians(zone.backDegrees) : RECLINER.backAngle;
+            const target = zone?.target ?? {x:BUILDING.stage.x,y:30,z:BUILDING.stage.z};
+            seat.yaw = Math.atan2(seat.x-target.x, seat.z-target.z);
+            const eye = seatEye(seat);
+            seat.viewPitch = zone?.gazeDegrees != null ? radians(zone.gazeDegrees)
+              : Math.atan2(target.y-eye.y, Math.hypot(eye.x-target.x,eye.z-target.z));
+            if(zone) seat.viewZone = zone.id;
           }
           seats.push(seat); rowSeats.push(seat); group.seats.push(seat); byId.set(seat.id, seat);
         }

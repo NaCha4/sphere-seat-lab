@@ -1,0 +1,29 @@
+{
+  "amount": 1,
+  "required": 0.9812022944087186,
+  "crossingSamples": 205991,
+  "unshieldable": 0,
+  "seats": 3760,
+  "viewField": {
+    "verticalDegrees": 72,
+    "horizontalDegrees": 100
+  },
+  "groups": [
+    {
+      "id": 1,
+      "label": "하부 · 1·2층",
+      "seats": 1740,
+      "minimumPitch": -7.302557865934737,
+      "maximumPitch": 21.06084480422756,
+      "crossingSamples": 205991
+    },
+    {
+      "id": 2,
+      "label": "상부 · 3·4층",
+      "seats": 2020,
+      "minimumPitch": 55,
+      "maximumPitch": 55,
+      "crossingSamples": 0
+    }
+  ]
+}

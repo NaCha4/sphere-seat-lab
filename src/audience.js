@@ -35,9 +35,6 @@ export class Audience extends THREE.Group {
     const body = mergeGeometries(bodyParts), lap = mergeGeometries(legs);
     [...bodyParts, ...legs].forEach(g => g.dispose());
     if (layout.world.seating === 'recliner') {
-      for (const geometry of [head,body]) {
-        geometry.translate(0,-.46,.05); geometry.rotateX(RECLINER.backAngle); geometry.translate(0,.46,-.05);
-      }
       lap.rotateX(-.15); lap.translate(0,-.03,-.04);
     }
     const specs = [
@@ -69,7 +66,17 @@ export class Audience extends THREE.Group {
     object.position.set(seat.x, seat.y, seat.z); object.rotation.y = seat.yaw;
     object.scale.set(hidden ? 0 : 1, hidden ? 0 : this.stature(seat), hidden ? 0 : 1);
     object.updateMatrix();
-    for (const mesh of this.meshes) { mesh.setMatrixAt(seat.index, object.matrix); mesh.instanceMatrix.needsUpdate = true; }
+    const pose = new THREE.Matrix4();
+    if(seat.recliner) {
+      pose.makeTranslation(0,.46,-.05);
+      pose.multiply(new THREE.Matrix4().makeRotationX(seat.backAngle ?? RECLINER.backAngle));
+      pose.multiply(new THREE.Matrix4().makeTranslation(0,-.46,.05));
+    }
+    for (let i=0;i<this.meshes.length;i++) {
+      const mesh=this.meshes[i];
+      mesh.setMatrixAt(seat.index, i<2 && seat.recliner ? object.matrix.clone().multiply(pose) : object.matrix);
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   }
   exclude(seat) {
     if (this.excludedSeat?.id === seat.id) return;

@@ -42,12 +42,15 @@ test('recliner world reduces seating and provides wide chairs on deep continuous
   }
 });
 
-test('expanded recliner capacity retains clearance around fully extended chairs', () => {
-  const seats = makeLayout('curvature-v1').seats;
+for (const worldId of ['curvature-v1','fan-v2']) test(`${worldId}: recliners retain clearance around fully extended chairs`, () => {
+  const seats = makeLayout(worldId).seats;
   // A conservative 0.90 x 1.56 m footprint encloses the rendered armrests,
   // reclined back/headrest and fully extended footrest.
   const corner = (s,x,z) => ({ x:s.x+x*Math.cos(s.yaw)+z*Math.sin(s.yaw), z:s.z-x*Math.sin(s.yaw)+z*Math.cos(s.yaw) });
-  const outlines = seats.map(s => [corner(s,-.45,-.93),corner(s,.45,-.93),corner(s,.45,.63),corner(s,-.45,.63)]);
+  const outlines = seats.map(s => {
+    const rear = s.backAngle>Math.PI/4 ? .93 : .63;
+    return [corner(s,-.45,-.93),corner(s,.45,-.93),corner(s,.45,rear),corner(s,-.45,rear)];
+  });
   const overlaps = (a,b) => {
     for (const p of [a,b]) for (let edge=0;edge<2;edge++) {
       const q=p[edge+1],r=p[edge],ax=-(q.z-r.z),az=q.x-r.x;

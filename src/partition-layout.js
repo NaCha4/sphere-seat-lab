@@ -1,43 +1,52 @@
-// Concept dimensions, not structural/mechanism specifications. The two
-// boundaries sit between the seated-eye envelopes of the baseline groups.
+import { PARTITION_HEIGHT, VIEW_ZONES } from './view-zones.js';
+import footprint from './data/partition-footprint.json' with { type: 'json' };
+
+// Concept dimensions, not structural/mechanism specifications.
 export const PARTITIONS = Object.freeze({
-  levels: Object.freeze([11, 24.4]), thickness: .05,
+  levels: Object.freeze([PARTITION_HEIGHT]), thickness: .05,
   halfWidth: 65.7, rearZ: 64.7, frontZ: -61,
+  hubX: footprint.hub.x, hubZ: footprint.hub.z,
   duration: 1.8, blades: 40,
 });
 
-export const SCREEN_BANDS = Object.freeze([
-  Object.freeze({ id: 1, label: '1층 · 100번대', tiers: [100], bottom: 0, top: 11, color: '#9dcce5' }),
-  Object.freeze({ id: 2, label: '2층 · 200번대', tiers: [200], bottom: 11, top: 24.4, color: '#b9d8a1' }),
-  Object.freeze({ id: 3, label: '3층 그룹 · 300·400번대', tiers: [300, 400], bottom: 24.4, top: 73.152, color: '#d5b5e2' }),
-]);
+export const SCREEN_BANDS = VIEW_ZONES;
 
 export const bandForTier = tier => SCREEN_BANDS.find(b => b.tiers.includes(tier));
 
-const corner = Math.atan(PARTITIONS.halfWidth / (PARTITIONS.rearZ - PARTITIONS.frontZ));
-const angles = [...Array.from({ length: PARTITIONS.blades + 1 }, (_, i) => -Math.PI / 2 + Math.PI * i / PARTITIONS.blades), -corner, corner].sort((a, b) => a - b);
-
-// Shared by rendered geometry and ray auditing. Folded leaves retract into a
-// rear cassette. Extension and rotation are a schematic deployment animation;
-// they do not assert that a real 100m-scale fan mechanism is feasible.
-export function fanRing(amount, level = PARTITIONS.levels[0]) {
+// The convex envelope of crossing sightlines, with a 1m edge allowance.
+// Radial retraction into the local hub is only a schematic mechanism.
+export function fanRing(amount) {
   const open = Math.max(0, Math.min(1, amount));
-  return angles.map(fullAngle => {
-    const outerRadius = Math.sqrt((BUILDING.diameter / 2 - .1) ** 2 - (level - BUILDING.centerY) ** 2);
-    const circleRadius = PARTITIONS.rearZ * Math.cos(fullAngle)
-      + Math.sqrt(outerRadius ** 2 - (PARTITIONS.rearZ * Math.sin(fullAngle)) ** 2);
-    const fullRadius = Math.min(
-      Math.abs(Math.sin(fullAngle)) < 1e-9 ? Infinity : PARTITIONS.halfWidth / Math.abs(Math.sin(fullAngle)),
-      Math.cos(fullAngle) < 1e-9 ? Infinity : (PARTITIONS.rearZ - PARTITIONS.frontZ) / Math.cos(fullAngle),
-      circleRadius,
-    );
-    const angle = Math.PI / 2 + (fullAngle - Math.PI / 2) * (.008 + .992 * open);
-    const radius = 1.4 * (1 - open) + fullRadius * open;
-    return { x: Math.sin(angle) * radius, z: PARTITIONS.rearZ - Math.cos(angle) * radius };
-  });
+  const scale = .012 + .988 * open;
+  return footprint.vertices.map(p => ({
+    x: PARTITIONS.hubX + (p.x - PARTITIONS.hubX) * scale,
+    z: PARTITIONS.hubZ + (p.z - PARTITIONS.hubZ) * scale,
+  }));
 }
 
 export const fanRings = amount => PARTITIONS.levels.map(level => fanRing(amount, level));
+
+// Smallest radial deployment that covers this ray at the separator plane.
+// Infinity means the ray cannot be intercepted by this panel's footprint.
+export function requiredPartitionAmount(origin, target, ring = fanRing(1)) {
+  const dy = target.y - origin.y;
+  if (Math.abs(dy) < 1e-9) return 0;
+  const t = (PARTITION_HEIGHT - origin.y) / dy;
+  if (t <= 0 || t >= 1) return 0;
+  const px = origin.x + (target.x - origin.x) * t - PARTITIONS.hubX;
+  const pz = origin.z + (target.z - origin.z) * t - PARTITIONS.hubZ;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i+1)%ring.length];
+    const ax = a.x - PARTITIONS.hubX, bx = b.x - PARTITIONS.hubX;
+    const az = a.z - PARTITIONS.hubZ, bz = b.z - PARTITIONS.hubZ;
+    const det = ax * bz - az * bx;
+    if (Math.abs(det) < 1e-9) continue;
+    const u = (px * bz - pz * bx) / det;
+    const v = (ax * pz - az * px) / det;
+    if (u >= -1e-8 && v >= -1e-8) return Math.max(0, (u + v - .012) / .988);
+  }
+  return Infinity;
+}
 
 function inTriangleXZ(p, a, b, c) {
   const sign = (u, v, w) => (u.x - w.x) * (v.z - w.z) - (v.x - w.x) * (u.z - w.z);
@@ -53,8 +62,8 @@ export function partitionBlocksSegment(origin, target, amount = 1, rings = fanRi
     const t = (y - origin.y) / dy;
     if (t <= 0 || t >= 1) continue;
     const p = { x: origin.x + (target.x - origin.x) * t, z: origin.z + (target.z - origin.z) * t };
-    for (let i = 1; i < ring.length; i++) {
-      if (inTriangleXZ(p, { x: 0, z: PARTITIONS.rearZ }, ring[i - 1], ring[i])) return true;
+    for (let i = 0; i < ring.length; i++) {
+      if (inTriangleXZ(p, { x: PARTITIONS.hubX, z: PARTITIONS.hubZ }, ring[i], ring[(i+1)%ring.length])) return true;
     }
   }
   return false;
@@ -81,9 +90,15 @@ export function bandFrame(band, screen) {
 export function bandVideoUV(point, band, screen) {
   const angle = Math.atan2(point.x, -(point.z - screen.centerZ));
   const halfAngle = Math.max(1e-5, bandHalfAngle(point.y, screen));
+  const v = Math.max(0, Math.min(1, (point.y - band.bottom) / (band.top - band.bottom)));
+  const uArc = .5 + angle / (2 * halfAngle);
+  // A full horizontal panorama cannot meet at a single pole. Fade into a
+  // continuous front projection before the canopy closes behind the viewer.
+  const t = band.id === 2 ? Math.max(0, Math.min(1, (v - .45) / .30)) : 0;
+  const blend = t * t * (3 - 2 * t);
+  const uCap = .5 + point.x / (2 * screen.radius);
   return {
-    u: Math.max(0, Math.min(1, .5 + angle / (2 * halfAngle))),
-    v: Math.max(0, Math.min(1, (point.y - band.bottom) / (band.top - band.bottom))),
+    u: Math.max(0, Math.min(1, uArc * (1 - blend) + uCap * blend)), v,
   };
 }
 
