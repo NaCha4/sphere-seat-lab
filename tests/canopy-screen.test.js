@@ -27,15 +27,30 @@ test('25-degree canopy retains the existing two seated zones and poses',()=>{
   }
 });
 
-test('canopy loads fully extended and old folding/length commands cannot open a gap',()=>{
+test('canopy folds completely and reopens to the same screen-fitting shape',()=>{
   const fans=new FanPartitions(),geometry=fans.membranes[0].mesh.geometry;
-  for(const value of [0,.1,.5,1]) {
-    fans.setAmount(value);fans.setDeployed(false,true);fans.update(.1);
-    const state=fans.getState();assert.equal(state.amount,1);assert.equal(state.deployed,true);
-    assert.equal(state.screenAttached,true);assert.equal(state.moving,false);
-    assert.ok(fans.membranes.every(m=>m.mesh.visible));assert.equal(fans.membranes[0].mesh.geometry,geometry);
-  }
+  const unfolded=Array.from(geometry.attributes.position.array);
+  assert.equal(fans.getState().screenAttached,true);
+  fans.setDeployed(false);assert.equal(fans.getState().moving,true);
+  for(let i=0;i<30;i++)fans.update(.05);
+  assert.equal(fans.getState().amount,0);assert.equal(fans.getState().deployed,false);
+  assert.equal(fans.getState().screenAttached,false);assert.equal(fans.getState().moving,false);
+  assert.ok(fans.membranes.every(m=>!m.mesh.visible&&!m.ribs.visible&&!m.skirt.visible));
+  fans.setDeployed(true);for(let i=0;i<30;i++)fans.update(.05);
+  assert.equal(fans.getState().amount,1);assert.equal(fans.getState().screenAttached,true);
+  assert.ok(fans.membranes.every(m=>m.mesh.visible));assert.equal(fans.membranes[0].mesh.geometry,geometry);
+  assert.deepEqual(Array.from(geometry.attributes.position.array),unfolded);
   near(fans.getState().projectionMetres,53.31360154056196);dispose(fans);
+});
+
+test('a moving canopy reverses direction without jumping and keeps the 25-degree plane',()=>{
+  const fans=new FanPartitions();fans.setDeployed(false);fans.update(.1);fans.update(.1);
+  const amount=fans.getState().amount;assert.ok(amount>0&&amount<1);
+  fans.setDeployed(true);assert.equal(fans.getState().amount,amount);
+  fans.update(.1);assert.ok(fans.getState().amount>amount);
+  for(const panel of partitionPanels(fans.getState().amount))for(const p of panel.ring)near(toCanopyFrame(p).y,CANOPY.cut);
+  fans.setDeployed(false,true);assert.equal(fans.getState().amount,0);
+  fans.setDeployed(true,true);assert.equal(fans.getState().amount,1);dispose(fans);
 });
 
 test('contact arc exactly intersects the 25-degree plane and sphere and reaches both screen edges',()=>{

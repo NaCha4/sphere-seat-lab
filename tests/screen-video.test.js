@@ -118,8 +118,8 @@ test('the decoded movie replaces the loading image without resetting overview or
       assert.equal(model.screenMaterial,material,'both zones share two rendered frames; no camera-dependent screen hiding');
     }
     model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,1,'remain joined to the screen');
-    model.setPartitionAmount(.6);
-    assert.equal(model.getPartitionState().deployed,true);
+    model.setPartitions(false,true);
+    assert.equal(model.getPartitionState().deployed,false);
     model.setScreen('aurora'); assert.equal(model.screenMode,'video','this experimental world keeps two synchronized videos');
     model.setLayout(makeLayout('original'));
     assert.equal(model.getPartitionState(),null);
@@ -128,7 +128,8 @@ test('the decoded movie replaces the loading image without resetting overview or
     assert.equal(model.screenMaterial.map,texture);
     assert.equal(players,1,'switching between two-band and full-dome playback uses one decoder');
     model.setLayout(makeLayout('fan-v2'));
-    assert.equal(model.getPartitionState().amount,1,'screen attachment survives world changes');
+    assert.equal(model.getPartitionState().amount,0,'folded state survives world changes');
+    model.setPartitions(true,true);assert.equal(model.getPartitionState().screenAttached,true);
   } finally { model?.dispose(); globalThis.document = original; }
 });
 

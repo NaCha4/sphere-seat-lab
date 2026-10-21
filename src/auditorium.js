@@ -123,7 +123,7 @@ export class Auditorium {
     this.createArchitecture(); this.createSeats();
     this.fans = layout.world.partitions ? new FanPartitions() : null;
     if (this.fans) {
-      this.setPartitionAmount(this.partitionAmount ?? 0);
+      this.setPartitionAmount(this.partitionAmount ?? 1);
       this.worldGroup.add(this.fans);
     }
     const ring = new THREE.Mesh(new THREE.RingGeometry(.42, .49, 32), new THREE.MeshBasicMaterial({ color: '#eac78d', side: THREE.DoubleSide }));

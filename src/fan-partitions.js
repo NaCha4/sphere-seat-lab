@@ -26,12 +26,14 @@ export class FanPartitions extends THREE.Group {
   }
 
   setAmount(amount) {
-    // This design is always fully joined to the screen, including on reload.
-    this.amount = this.target = 1;
+    this.amount = THREE.MathUtils.clamp(amount,0,1);
     const half = PARTITIONS.thickness / 2, panels = partitionPanels(Math.max(.0001, this.amount));
     for (const [index, { mesh, ribs, skirt }] of this.membranes.entries()) {
       mesh.visible = ribs.visible = this.amount > 0;
       skirt.visible = this.amount > 0 && (Math.abs(this.membranes[index].panel.a.mountY-this.membranes[index].panel.a.y)>1e-6 || Math.abs(this.membranes[index].panel.b.mountY-this.membranes[index].panel.b.y)>1e-6);
+      skirt.geometry.attributes.position.array.set(panels[index].mountRing.flatMap(p=>[p.x,p.y,p.z]));
+      skirt.geometry.attributes.position.needsUpdate=true;
+      skirt.geometry.computeVertexNormals();skirt.geometry.computeBoundingSphere();
       const ring = panels[index].ring;
       const positions = [], indices = [], lines = [];
       for (const p of ring) positions.push(p.x, p.y + half, p.z, p.x, p.y - half, p.z);
@@ -58,13 +60,19 @@ export class FanPartitions extends THREE.Group {
   }
 
   setDeployed(deployed, immediate = false) {
-    this.setAmount(1);
+    this.target = deployed ? 1 : 0;
+    if (immediate) this.setAmount(this.target);
   }
   update(delta) {
-    return false;
+    const distance=Math.abs(this.target-this.amount);
+    if (distance<1e-6) return false;
+    const step=Math.max(0,Math.min(.1,delta))/PARTITIONS.duration;
+    if (!step) return false;
+    this.setAmount(distance<=step+1e-9 ? this.target : this.amount+Math.sign(this.target-this.amount)*step);
+    return true;
   }
   getState() {
-    return { amount: 1, deployed: true, screenAttached:true, resetAmount: 1, slopeDegrees: PARTITIONS.slopeDegrees,
+    return { amount:this.amount, deployed:this.target>0, screenAttached:this.amount>=1-1e-6, resetAmount:1, slopeDegrees: PARTITIONS.slopeDegrees,
       projectionMetres: this.amount * PARTITIONS.maximumProjection, maximumProjectionMetres: PARTITIONS.maximumProjection,
       moving: Math.abs(this.amount - this.target) > 1e-6, levels: [...PARTITIONS.levels] };
   }

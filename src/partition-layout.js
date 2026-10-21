@@ -34,7 +34,8 @@ export function partitionPanels(amount = 1) {
       tipEdge.push({x:x+(tip.x-x)*fraction,y:CANOPY.rootY+(tip.y-CANOPY.rootY)*fraction,z:CANOPY.rootZ+(tip.z-CANOPY.rootZ)*fraction});
     }
     return {...segment,a,b,rootA,rootB,length,y:footprint.lowerLineY,contactEdge,
-      mountRing:[a,b,{...b,y:b.mountY},{...a,y:a.mountY}],
+      mountRing:[a,b,{...b,y:b.mountY},{...a,y:a.mountY}].map(p=>({...p,
+        y:CANOPY.rootY+(p.y-CANOPY.rootY)*fraction,z:CANOPY.rootZ+(p.z-CANOPY.rootZ)*fraction})),
       ring:[rootA,rootB,...tipEdge],
     };
   });
