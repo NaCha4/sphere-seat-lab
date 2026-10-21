@@ -28,7 +28,7 @@ function correspondingSelection(worldId, selection) {
   return { section: near.section, row: near.row, number: Math.min(targetRow.length, Math.floor((start.number-.5)/sourceRow.length*targetRow.length)+1) };
 }
 
-export function compareWorlds({ worldId, selection, audience, partitionAmount = 0 }) {
+export function compareWorlds({ worldId, selection, audience, partitionAmount = 1 }) {
   if (getWorld(worldId).partitions) {
     if (!layouts.has(worldId)) layouts.set(worldId, makeLayout(worldId));
     const seat = resolveSeat(layouts.get(worldId), selection);

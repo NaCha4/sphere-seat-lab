@@ -1,51 +1,43 @@
-import { PARTITION_HEIGHT, CANOPY_SLOPE_DEGREES, VIEW_ZONES, VIEW_FIELD } from './view-zones.js';
+import { PARTITION_HEIGHT, CANOPY_SLOPE_DEGREES, VIEW_ZONES } from './view-zones.js';
 import footprint from './data/partition-footprint.json' with { type: 'json' };
+import { CANOPY, toCanopyFrame, fromCanopyFrame, screenHalfAngle, screenContact } from './canopy-profile.js';
 
 // Concept dimensions, not structural/mechanism specifications.
 export const PARTITIONS = Object.freeze({
   // Screen division and mounting heights are independent.
   levels: Object.freeze([footprint.lowerLineY]),
   boundary: PARTITION_HEIGHT, thickness: .05, duration: 1.2, slopeDegrees: CANOPY_SLOPE_DEGREES,
-  maximumProjection: footprint.maximumProjectionMetres,
+  maximumProjection: CANOPY.centerProjection,
 });
 
 export const SCREEN_BANDS = VIEW_ZONES;
 
 export const bandForTier = tier => SCREEN_BANDS.find(b => b.tiers.includes(tier));
 
-export function partitionAmountForLength(metres) {
-  if (!Number.isFinite(metres)) return null;
-  return Math.max(0, Math.min(PARTITIONS.maximumProjection, metres)) / PARTITIONS.maximumProjection;
-}
-
-export function partitionPanels(amount = 1, slopeDegrees = PARTITIONS.slopeDegrees) {
-  const length = Math.max(0, Math.min(1, amount)) * PARTITIONS.maximumProjection;
-  const halfWidth=Math.max(...footprint.segments.flatMap(s=>[Math.abs(s.a.x),Math.abs(s.b.x)]));
-  const arcRadius=halfWidth/Math.sin(VIEW_FIELD.horizontalDegrees*Math.PI/360);
-  const point=(source,z=source.z)=>({...source,z,y:footprint.lowerLineY+(footprint.rearBaselineZ-z)*Math.tan(slopeDegrees*Math.PI/180)});
-  const tip=source=>point(source,footprint.frontBaselineZ-length*Math.sqrt(Math.max(0,1-(source.x/arcRadius)**2)));
+export function partitionPanels(amount = 1) {
+  const fraction=Math.max(0,Math.min(1,amount)),length=fraction*PARTITIONS.maximumProjection;
+  const minX=footprint.segments[0].a.x,maxX=footprint.segments.at(-1).b.x;
+  const point=(source,z=source.z)=>({...source,z,y:CANOPY.rootY+(CANOPY.rootZ-z)*Math.tan(CANOPY.slopeDegrees*Math.PI/180)});
+  const edge=(x,overlap=0)=>screenContact((x-minX)/(maxX-minX)*2-1,overlap);
   return footprint.segments.map(segment => {
     const a=point(segment.a),b=point(segment.b);
     // Begin at the innermost edge of the entire straightened area, not at
     // each bank's curved front. The former infill is part of the same blade.
     const rootA=point(a,footprint.rearBaselineZ),rootB=point(b,footprint.rearBaselineZ);
-    return {...segment,a,b,rootA,rootB,length,y:footprint.lowerLineY,
+    const contactEdge=[],tipEdge=[];
+    // Dense arc sampling and a small overlap seal the faceted LED mesh.
+    const steps=Math.max(2,Math.ceil((b.x-a.x)/.5));
+    for(let i=0;i<=steps;i++) {
+      const x=i===0?b.x:i===steps?a.x:b.x+(a.x-b.x)*i/steps;
+      const contact=edge(x),tip=edge(x,CANOPY.overlap);
+      contactEdge.push(contact);
+      tipEdge.push({x:x+(tip.x-x)*fraction,y:CANOPY.rootY+(tip.y-CANOPY.rootY)*fraction,z:CANOPY.rootZ+(tip.z-CANOPY.rootZ)*fraction});
+    }
+    return {...segment,a,b,rootA,rootB,length,y:footprint.lowerLineY,contactEdge,
       mountRing:[a,b,{...b,y:b.mountY},{...a,y:a.mountY}],
-      ring:[rootA,rootB,tip(b),tip(a)],
+      ring:[rootA,rootB,...tipEdge],
     };
   });
-}
-
-// Used only by the seated-view check, never to cap manual extension.
-export function requiredPartitionAmount(origin, target) {
-  if (!partitionBlocksSegment(origin,target,1)) return Infinity;
-  let low=0, high=1;
-  for (let i=0;i<32;i++) {
-    const mid=(low+high)/2;
-    if (partitionBlocksSegment(origin,target,mid)) high=mid;
-    else low=mid;
-  }
-  return high;
 }
 
 function intersectsTriangle(origin, target, a, b, c) {
@@ -68,9 +60,9 @@ export function partitionBlocksSegment(origin, target, amount = 1, panels = part
   if (amount <= 0) return false;
   for (const panel of panels) {
     for (const ring of [panel.ring,panel.mountRing]) {
-      const lo=Math.min(ring[0].y,ring[1].y,ring[2].y,ring[3].y), hi=Math.max(ring[0].y,ring[1].y,ring[2].y,ring[3].y);
+      const lo=Math.min(...ring.map(p=>p.y)), hi=Math.max(...ring.map(p=>p.y));
       if (Math.min(origin.y,target.y)>hi || Math.max(origin.y,target.y)<lo) continue;
-      if (intersectsTriangle(origin,target,ring[0],ring[1],ring[2]) || intersectsTriangle(origin,target,ring[0],ring[2],ring[3])) return true;
+      for(let i=1;i<ring.length-1;i++) if(intersectsTriangle(origin,target,ring[0],ring[i],ring[i+1])) return true;
     }
   }
   return false;
@@ -79,25 +71,22 @@ export function partitionBlocksSegment(origin, target, amount = 1, panels = part
 // The screen's clipped spherical surface has a different horizontal extent at
 // each height. Unwrap each horizontal arc fully, including the side returns.
 export function bandHalfAngle(y, screen) {
-  const dy = y - screen.centerY;
-  const radius = Math.sqrt(Math.max(1e-8, screen.radius ** 2 - dy ** 2));
-  const tilt = screen.tiltDegrees * Math.PI / 180;
-  const limit = (screen.clipOffset - Math.cos(tilt) * dy) / (Math.sin(tilt) * radius);
-  return Math.acos(Math.max(-1, Math.min(1, limit)));
+  return screenHalfAngle(y,screen);
 }
 
 // Aspect is measured along the horizontal arc at the band's middle height.
 // It is a video-production reference, not a flat projection onto the dome.
 export function bandFrame(band, screen) {
   const center = (band.bottom + band.top) / 2;
-  const radius = Math.sqrt(Math.max(0, screen.radius ** 2 - (center - screen.centerY) ** 2));
+  const radius = Math.sqrt(Math.max(0, screen.radius ** 2 - center ** 2));
   return { center, height: band.top - band.bottom, width: 2 * radius * bandHalfAngle(center, screen), bottom: band.bottom, top: band.top };
 }
 
 export function bandVideoUV(point, band, screen) {
-  const angle = Math.atan2(point.x, -(point.z - screen.centerZ));
-  const halfAngle = Math.max(1e-5, bandHalfAngle(point.y, screen));
-  const v = Math.max(0, Math.min(1, (point.y - band.bottom) / (band.top - band.bottom)));
+  const local=toCanopyFrame(point,screen);
+  const angle = Math.atan2(local.x, -local.z);
+  const halfAngle = Math.max(1e-5, bandHalfAngle(local.y, screen));
+  const v = Math.max(0, Math.min(1, (local.y - band.bottom) / (band.top - band.bottom)));
   const uArc = .5 + angle / (2 * halfAngle);
   // A full horizontal panorama cannot meet at a single pole. Fade into a
   // continuous front projection before the canopy closes behind the viewer.
@@ -111,9 +100,8 @@ export function bandVideoUV(point, band, screen) {
 
 export function bandSurfacePoint(band, u, v, screen) {
   const y = band.bottom + v * (band.top - band.bottom);
-  const radius = Math.sqrt(Math.max(0, screen.radius ** 2 - (y - screen.centerY) ** 2));
+  const radius = Math.sqrt(Math.max(0, screen.radius ** 2 - y ** 2));
   const angle = (2 * u - 1) * bandHalfAngle(y, screen);
-  return { x: radius * Math.sin(angle), y, z: screen.centerZ - radius * Math.cos(angle) };
+  return fromCanopyFrame({ x: radius * Math.sin(angle), y, z:-radius * Math.cos(angle) },screen);
 }
-import { BUILDING } from './layout.js';
 

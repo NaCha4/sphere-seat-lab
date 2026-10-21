@@ -3,7 +3,7 @@ import { PARTITIONS, partitionPanels } from './partition-layout.js';
 
 export class FanPartitions extends THREE.Group {
   constructor() {
-    super(); this.name = 'seat-edge-retractable-visors'; this.amount = 0; this.target = 0;
+    super(); this.name = 'screen-attached-canopy'; this.amount = 1; this.target = 1;
     this.membranes = partitionPanels(1).map((panel, i) => {
       const mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({
         color: i ? '#485366' : '#4c5d59', roughness: .96, metalness: .08, side: THREE.DoubleSide,
@@ -22,11 +22,12 @@ export class FanPartitions extends THREE.Group {
       cassette.name = `seat-edge-cassette-${panel.section}`; this.add(cassette);
       return { mesh, ribs, skirt, level: panel.y, panel, cassette };
     });
-    this.setAmount(0);
+    this.setAmount(1);
   }
 
   setAmount(amount) {
-    this.amount = THREE.MathUtils.clamp(amount, 0, 1);
+    // This design is always fully joined to the screen, including on reload.
+    this.amount = this.target = 1;
     const half = PARTITIONS.thickness / 2, panels = partitionPanels(Math.max(.0001, this.amount));
     for (const [index, { mesh, ribs, skirt }] of this.membranes.entries()) {
       mesh.visible = ribs.visible = this.amount > 0;
@@ -34,14 +35,14 @@ export class FanPartitions extends THREE.Group {
       const ring = panels[index].ring;
       const positions = [], indices = [], lines = [];
       for (const p of ring) positions.push(p.x, p.y + half, p.z, p.x, p.y - half, p.z);
-      indices.push(0, 2, 4, 0, 4, 6, 1, 5, 3, 1, 7, 5);
+      for(let i=1;i<ring.length-1;i++) indices.push(0,i*2,(i+1)*2,1,(i+1)*2+1,i*2+1);
       for (let i = 0; i < ring.length; i++) {
         const a = i * 2, b = ((i + 1) % ring.length) * 2;
         indices.push(a, a + 1, b, a + 1, b + 1, b);
       }
       // Draw only the continuous root and leading edges, not false gaps at
       // every internal joint.
-      for (const i of [0,2]) for (const side of [-1,1]) {
+      for (const i of [0,...Array.from({length:ring.length-3},(_,j)=>j+2)]) for (const side of [-1,1]) {
         const p = ring[i], next = ring[(i + 1) % ring.length];
         lines.push(p.x, p.y + side*(half+.012), p.z, next.x, next.y + side*(half+.012), next.z);
       }
@@ -57,19 +58,13 @@ export class FanPartitions extends THREE.Group {
   }
 
   setDeployed(deployed, immediate = false) {
-    // The manual preview remains usable when the calculated minimum is zero.
-    this.target = deployed ? 1 : 0;
-    if (immediate) this.setAmount(this.target);
+    this.setAmount(1);
   }
   update(delta) {
-    if (Math.abs(this.amount - this.target) < 1e-6) return false;
-    const step = Math.min(.1, delta) / PARTITIONS.duration;
-    const distance = Math.abs(this.target - this.amount);
-    this.setAmount(distance <= step + 1e-9 ? this.target : this.amount + Math.sign(this.target - this.amount) * step);
-    return true;
+    return false;
   }
   getState() {
-    return { amount: this.amount, deployed: this.target > 0, resetAmount: 0, slopeDegrees: PARTITIONS.slopeDegrees,
+    return { amount: 1, deployed: true, screenAttached:true, resetAmount: 1, slopeDegrees: PARTITIONS.slopeDegrees,
       projectionMetres: this.amount * PARTITIONS.maximumProjection, maximumProjectionMetres: PARTITIONS.maximumProjection,
       moving: Math.abs(this.amount - this.target) > 1e-6, levels: [...PARTITIONS.levels] };
   }

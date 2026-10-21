@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { PARTITIONS, SCREEN_BANDS } from './partition-layout.js';
 import atlas from './data/band-video.json' with { type: 'json' };
+import { CANOPY } from './canopy-profile.js';
 
 export function createBandScreenMaterial(texture, ready, screen, { panoramic = false } = {}) {
-  const tilt = screen.tiltDegrees * Math.PI / 180;
+  const tilt = (screen.tiltDegrees+(panoramic?0:CANOPY.slopeDegrees)) * Math.PI / 180;
   return new THREE.ShaderMaterial({
     name: panoramic ? 'Full-width landscape / horizon fit' : 'Full-width curved bands / one synchronized video atlas',
     uniforms: {
@@ -16,6 +17,7 @@ export function createBandScreenMaterial(texture, ready, screen, { panoramic = f
       // sky over the upper dome rather than wrapping a flat shot at the pole.
       uVerticalExponent: { value: panoramic ? .5 : 1 },
       uCanopy: { value: panoramic ? 0 : 1 },
+      uFrame: { value: new THREE.Vector2(CANOPY.cos,CANOPY.sin) },
       uScreen: { value: new THREE.Vector4(screen.centerY, screen.centerZ, screen.radius, screen.clipOffset) },
       uTilt: { value: new THREE.Vector2(Math.cos(tilt), Math.sin(tilt)) },
     },
@@ -33,16 +35,25 @@ export function createBandScreenMaterial(texture, ready, screen, { panoramic = f
       uniform float uBoundary;
       uniform float uVerticalExponent;
       uniform float uCanopy;
+      uniform vec2 uFrame;
       varying vec3 vPoint;
       void main() {
-        int band = vPoint.y < uBoundary ? 0 : 1;
-        vec2 bounds = uBands[band];
         float dy = vPoint.y - uScreen.x;
+        float dz = vPoint.z - uScreen.y;
+        float height = vPoint.y;
+        if(uCanopy > 0.5) {
+          height = dy*uFrame.x + dz*uFrame.y;
+          dz = dz*uFrame.x - dy*uFrame.y;
+          dy = height;
+        }
+        int band = height < uBoundary ? 0 : 1;
+        vec2 bounds = uBands[band];
         float radius = sqrt(max(0.00000001, uScreen.z*uScreen.z - dy*dy));
         float limit = (uScreen.w - uTilt.x*dy) / (uTilt.y*radius);
+        if(uCanopy > 0.5) limit=max(limit,(-uScreen.x-height*uFrame.x)/(radius*uFrame.y));
         float halfAngle = max(0.00001, acos(clamp(limit, -1.0, 1.0)));
-        float angle = atan(vPoint.x, -(vPoint.z-uScreen.y));
-        float rawV = clamp((vPoint.y-bounds.x)/(bounds.y-bounds.x), 0.0, 1.0);
+        float angle = atan(vPoint.x, -dz);
+        float rawV = clamp((height-bounds.x)/(bounds.y-bounds.x), 0.0, 1.0);
         float u = 0.5 + angle/(2.0*halfAngle);
         if (band == 1 && uCanopy > 0.5) {
           float capU = 0.5 + vPoint.x/(2.0*uScreen.z);

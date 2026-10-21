@@ -13,7 +13,7 @@ export const WORLDS = Object.freeze([
   }),
   Object.freeze({
     id: 'fan-v2', label: 'V2 · 2구역 리클라이너 / 객석 전면 차양', shortLabel: 'V2 2구역',
-    description: '하부는 전방, 상부는 천장을 보는 리클라이너 배치. 객석 전면에서 나오는 차양을 0–100m 범위에서 직접 조절합니다.',
+    description: '하부는 전방, 상부는 천장을 보는 리클라이너 배치. 25° 차광막이 스크린까지 펼쳐지고 영상도 같은 경계로 나뉩니다.',
     geometry: null, screenLayout: 'two-bands', partitions: true, seating: 'recliner',
   }),
 ]);

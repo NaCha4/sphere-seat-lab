@@ -1,15 +1,14 @@
 {
-  "amount": null,
-  "required": 2.3283064365386963e-10,
-  "projectionMetres": null,
-  "crossingSamples": 1454,
-  "unshieldable": 454,
+  "amount": 1,
+  "projectionMetres": 53.31360154056196,
+  "crossingSamples": 8264,
+  "unshieldable": 148,
   "seats": 3760,
   "viewField": {
     "verticalDegrees": 72,
     "horizontalDegrees": 100
   },
-  "scope": "upper-seated-view-only",
+  "scope": "fixed-screen-attached-canopy",
   "groups": [
     {
       "id": 1,
@@ -17,7 +16,7 @@
       "seats": 1740,
       "minimumPitch": -7.302557865934737,
       "maximumPitch": 21.06084480422756,
-      "crossingSamples": 131599,
+      "crossingSamples": 58911,
       "protectionRequired": false
     },
     {
@@ -26,7 +25,7 @@
       "seats": 2020,
       "minimumPitch": 55,
       "maximumPitch": 55,
-      "crossingSamples": 1454,
+      "crossingSamples": 8264,
       "protectionRequired": true
     }
   ]

@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { BUILDING } from '../src/layout.js';
 import { SCREEN_BANDS, bandFrame } from '../src/partition-layout.js';
+import { CANOPY } from '../src/canopy-profile.js';
 
 // One video atlas keeps both viewing zones frame-accurate with one decoder.
 const width = 3072;
@@ -16,6 +17,6 @@ for (const band of bands) {
   band.offset = 1 - (band.row + band.height) / row;
   band.scale = band.height / row;
 }
-const result = { width, height: row, fps: 24, duration: 20, bands };
+const result = { width, height: row, fps: 24, duration: 20, frameRotationDegrees:CANOPY.slopeDegrees, boundaryCoordinate:CANOPY.cut, bands };
 writeFileSync(new URL('../src/data/band-video.json', import.meta.url), JSON.stringify(result, null, 2) + '\n');
 console.log(JSON.stringify(result, null, 2));

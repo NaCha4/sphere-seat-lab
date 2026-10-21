@@ -4,13 +4,14 @@ import { lowerPoint, LOWER_KNOTS, LOWER_TREAD, LOWER_LENGTH, pixelToPlan, PRODUC
 import { getWorld, warpPlan } from './worlds.js';
 import { RECLINER, seatEye } from './seating-pose.js';
 import { zoneForTier } from './view-zones.js';
+import { SCREEN } from './screen-spec.js';
 
 // Published dimensions. Interior estimates are documented in RECONSTRUCTION_AUDIT.md.
 export const BUILDING = Object.freeze({
   diameter: 157.2768, height: 111.5568, centerY: 32.9184,
   screenApex: 73.152, publishedScreenArea: 14864.4864, publishedSeats: 17385,
   // Conditional fit of the public 2019 section, clipped at the event floor.
-  screen: { radius: 58.11, tiltDegrees: 42, centerY: 15.042, centerZ: 0, clipOffset: 15.57436 },
+  screen: SCREEN,
   stage: { ...pixelToPlan(PRODUCTION_PLAN.stageCenterPx), y: .8, width: 14.127, depth: 14.127, turntableRadius: 5.08 },
   seatPitch: .58, aisleWidth: 1.1, eyeHeight: 1.18,
 });

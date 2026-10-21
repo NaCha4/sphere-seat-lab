@@ -1,28 +1,30 @@
 {
   "width": 3072,
-  "height": 1432,
+  "height": 2146,
   "fps": 24,
   "duration": 20,
+  "frameRotationDegrees": 25,
+  "boundaryCoordinate": 11.285068290167928,
   "bands": [
     {
       "id": 1,
       "width": 3072,
-      "height": 588,
+      "height": 1134,
       "row": 0,
-      "referenceWidthMetres": 127.45337295892365,
-      "referenceHeightMetres": 24.4,
-      "offset": 0.5893854748603352,
-      "scale": 0.4106145251396648
+      "referenceWidthMetres": 131.73338634674752,
+      "referenceHeightMetres": 48.63906246359133,
+      "offset": 0.47157502329916123,
+      "scale": 0.5284249767008388
     },
     {
       "id": 2,
       "width": 3072,
-      "height": 844,
-      "row": 588,
-      "referenceWidthMetres": 177.4704937222216,
-      "referenceHeightMetres": 48.752,
+      "height": 1012,
+      "row": 1134,
+      "referenceWidthMetres": 142.05791147721766,
+      "referenceHeightMetres": 46.82493170983207,
       "offset": 0,
-      "scale": 0.5893854748603352
+      "scale": 0.47157502329916123
     }
   ]
 }

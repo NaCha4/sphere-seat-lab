@@ -106,12 +106,16 @@ def encode_bands(args, layout):
     source = Path('public/media/sphere-motion-loop.mp4')
     if not source.exists():
         raise FileNotFoundError('Render --target sphere before --target bands')
-    output = source.with_name('sphere-motion-two-bands.mp4')
+    output = source.with_name('sphere-motion-two-bands-25deg.mp4')
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
     labels = [f'zone{i}' for i in range(len(layout['bands']))]
     filters = [f"[0:v]crop=2048:620:0:202,split={len(labels)}" + ''.join(f'[{label}]' for label in labels)]
     for label, band in zip(labels, layout['bands']):
-        filters.append(f"[{label}]scale={band['width']}:{band['height']}:flags=lanczos[s{band['id']}]")
+        # Cover-crop each newly proportioned zone before scaling, retaining
+        # the shapes of the original artwork instead of stretching it.
+        crop_width = min(2048, round(620 * band['width'] / band['height'] / 2) * 2)
+        crop_height = min(620, round(2048 * band['height'] / band['width'] / 2) * 2)
+        filters.append(f"[{label}]crop={crop_width}:{crop_height},scale={band['width']}:{band['height']}:flags=lanczos,setsar=1[s{band['id']}]")
     filters.append(''.join(f"[s{band['id']}]" for band in layout['bands']) + f'vstack=inputs={len(labels)}[out]')
     subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y','-i',str(source),
                     '-filter_complex',';'.join(filters),'-map','[out]','-an','-c:v','libx264',
@@ -121,7 +125,7 @@ def encode_bands(args, layout):
     subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y','-i',str(output),
                     '-frames:v','1','-q:v','2',str(output.with_suffix('.jpg'))],check=True,creationflags=flags)
     for band in layout['bands']:
-        strip = output.with_name(f"sphere-motion-zone-{band['id']}.mp4")
+        strip = output.with_name(f"sphere-motion-zone-{band['id']}-25deg.mp4")
         subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y','-i',str(output),
                         '-vf',f"crop={band['width']}:{band['height']}:0:{band['row']}",
                         '-an','-c:v','libx264','-preset','veryfast','-crf','21','-pix_fmt','yuv420p',

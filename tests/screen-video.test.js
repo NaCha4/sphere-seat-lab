@@ -104,7 +104,7 @@ test('the decoded movie replaces the loading image without resetting overview or
       assert.equal(model.hovered[0].id,hover.id,'picking uses the replacement world');
     }
     model.setLayout(makeLayout('fan-v2'));
-    assert.equal(model.getPartitionState().amount,0,'start retracted for manual adjustment');
+    assert.equal(model.getPartitionState().amount,1,'start joined to the screen');
     assert.equal(model.movie,movie); assert.equal(model.screen,screen); assert.equal(video.currentTime,7.25);
     assert.equal(model.screenMaterial.uniforms.uMovie.value,texture);
     assert.equal(video.src,BAND_MOVIE_URL);
@@ -117,7 +117,7 @@ test('the decoded movie replaces the loading image without resetting overview or
       model.select(resolveSeat(model.layout,{section,row:10}));
       assert.equal(model.screenMaterial,material,'both zones share two rendered frames; no camera-dependent screen hiding');
     }
-    model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,1,'manual preview extends the seat-edge blades');
+    model.setPartitions(true,true); assert.equal(model.getPartitionState().amount,1,'remain joined to the screen');
     model.setPartitionAmount(.6);
     assert.equal(model.getPartitionState().deployed,true);
     model.setScreen('aurora'); assert.equal(model.screenMode,'video','this experimental world keeps two synchronized videos');
@@ -128,7 +128,7 @@ test('the decoded movie replaces the loading image without resetting overview or
     assert.equal(model.screenMaterial.map,texture);
     assert.equal(players,1,'switching between two-band and full-dome playback uses one decoder');
     model.setLayout(makeLayout('fan-v2'));
-    assert.equal(model.getPartitionState().amount,.6,'manual deployment survives world changes');
+    assert.equal(model.getPartitionState().amount,1,'screen attachment survives world changes');
   } finally { model?.dispose(); globalThis.document = original; }
 });
 

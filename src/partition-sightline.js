@@ -21,7 +21,7 @@ export function withinDefaultView(seat, target, eye = seatEye(seat)) {
     && Math.abs(up) <= forward * Math.tan(VIEW_FIELD.verticalDegrees * Math.PI / 360);
 }
 
-export function evaluatePartitions(seat, amount = 0) {
+export function evaluatePartitions(seat, amount = 1) {
   const own = bandForTier(seat.tier), panels = partitionPanels(amount);
   const eye = seatEye(seat);
   const bands = SCREEN_BANDS.map(band => {

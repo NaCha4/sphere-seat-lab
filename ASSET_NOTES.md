@@ -1,4 +1,20 @@
-# Screen content — Research 10
+# Screen content — Research 17
+
+V2 now follows the 25-degree canopy plane rather than a horizontal screen height. Both current presets were re-encoded for these physical zone proportions:
+
+| Export | Dimensions |
+| --- | --- |
+| Lower zone | 3072×1134 |
+| Upper zone | 3072×1012 |
+| Synchronized atlas | 3072×2146 |
+
+Active V2 files are `sphere-motion-two-bands-25deg.mp4` and `sphere-sunset-two-bands-25deg.mp4`, with matching JPEG posters. Separate exports use `sphere-{motion,sunset}-zone-{1,2}-25deg.mp4`. Motion remains 24 fps / 480 frames (20 seconds); sunset remains 24 fps / 192 frames (8 seconds). All six clips were completely decoded without errors using `scripts/verify-band-video.py` and their encoded dimensions match `src/data/band-video.json`.
+
+The atlas row ratio is 52.84% lower / 47.16% upper. This is an encoding allocation derived from each zone's reference aspect ratio, not a measured auditorium area ratio. Each source is cover-cropped to its target ratio before scaling. The original/V1 full-screen sources are unchanged. The new filenames prevent old V2 video cache entries from using the new layout metadata.
+
+Reproduce in order: `node scripts/fit-partition-footprint.js`, `node scripts/generate-band-layout.js`, `node scripts/fit-partition.js`, then the two video generation scripts below with `--target bands`. Finally run `python scripts/verify-band-video.py --ffmpeg /path/to/ffmpeg`. Source licensing and the earlier export history follow.
+
+## Previous exports — Research 10
 
 All three worlds offer a shared video selector. **Chromatic Flux** remains the default, unchanged: a self-authored procedural motion graphic with rotating neon orbits, flowing contours and expanding rings. It has a continuous 20-second loop with no cuts, audio, external footage or images. This is presentation content, not evidence of reduced motion sickness.
 

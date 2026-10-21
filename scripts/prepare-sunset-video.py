@@ -47,4 +47,12 @@ for label, band in zip(labels, layout['bands']):
     parts.append(f"[{label}]crop=3840:{height}:0:{top},scale={band['width']}:{band['height']}:flags=lanczos,setsar=1[s{band['id']}]")
 parts.append(''.join(f"[s{band['id']}]" for band in layout['bands']) + f'vstack=inputs={len(labels)}[out]')
 if args.target in ['bands', 'all']:
-    encode('sphere-sunset-two-bands', ';'.join(parts), True)
+    encode('sphere-sunset-two-bands-25deg', ';'.join(parts), True)
+    for band in layout['bands']:
+        subprocess.run([args.ffmpeg, '-hide_banner', '-loglevel', 'error', '-y',
+                        '-i', str(output / 'sphere-sunset-two-bands-25deg.mp4'),
+                        '-vf', f"crop={band['width']}:{band['height']}:0:{band['row']}",
+                        '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21',
+                        '-pix_fmt', 'yuv420p', '-threads', '4', '-movflags', '+faststart',
+                        str(output / f"sphere-sunset-zone-{band['id']}-25deg.mp4")],
+                       check=True, creationflags=flags)
